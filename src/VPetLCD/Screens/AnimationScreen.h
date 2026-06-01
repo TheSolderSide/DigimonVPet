@@ -40,6 +40,8 @@ namespace V20 {
     AbstractSpriteManager* getSpriteManager(){return spriteManager;};
     uint16_t getDigimonSpriteIndex(){ return digimonSpriteIndex;};
 
+    // update the digimon sprite index used by the animation
+    void setDigimonSpriteIndex(uint16_t _digimonSpriteIndex){ digimonSpriteIndex = _digimonSpriteIndex; };
     //starts the Animation
     void startAnimation(){currentFrame=0;};
     void abortAnimation(){currentFrame=-1;}

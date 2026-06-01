@@ -426,6 +426,12 @@ void loop()
     }
   }
 
+  // Ensure animation screens and name screen use the new digimon index after evolution
+  // (they were constructed with the old index and need to be updated)
+  eatingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  sleepingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+
   buttonPressed = false;
 
   if (debug == true)
