@@ -408,6 +408,11 @@ void VPetLCD::drawSmallIntegerOnLCD(int16_t integer, int16_t onLcdX, int16_t onL
 */
 void VPetLCD::startRendering() {
 
+  if(forceBlackScreen){
+    canvas->fillCanvas(0x0000);
+    return;
+  }
+
   canvas->fillCanvas(backgroundColor);
   drawScaledGrid(lcdWidth, lcdHeight);
 }

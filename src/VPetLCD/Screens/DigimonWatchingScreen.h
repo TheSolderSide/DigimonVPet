@@ -39,6 +39,9 @@ namespace V20{
       uint8_t poopAnimationCounter;
       uint8_t poopOffsetY=0; // the offset when flushing
       boolean isFlushing=false;
+      // sleeping symbol breathing animation
+      int8_t sleepingSymbolOffset = 0;
+      bool sleepingSymbolGoingUp = true;
       
 
       void drawPoop(VPetLCD* lcd);

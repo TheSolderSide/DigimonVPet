@@ -22,7 +22,9 @@ void Digimon::updateTimers(unsigned long delta){
     if(poopTimer > properties->poopTimeSec*1000){
         poopTimer %= properties->poopTimeSec*1000;
         numberOfPoops++;
-        loseWeight(1);
+        if(weight >0){
+            loseWeight(1);
+        }
     }
 
     ageTimer += delta;

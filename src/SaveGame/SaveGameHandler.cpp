@@ -17,6 +17,9 @@ void SaveGameHandler::loadDigimon(Digimon* digimon) {
     digimon->setStrength(EEPROM.readByte(ADDRESS_STRENGTH));
     digimon->setEffort(EEPROM.readByte(ADDRESS_EFFORT));
     digimon->setDigimonPower(EEPROM.readByte(ADDRESS_DIGIMONPOWER));
+    // load lights and sleep-flag
+    digimon->setLightsOn(EEPROM.readByte(ADDRESS_LIGHTS));
+    digimon->setSleepCareMistakeLogged(EEPROM.readByte(ADDRESS_SLEEP_LOGGED));
 }
 
 void SaveGameHandler::saveDigimon(Digimon* digimon) {
@@ -36,5 +39,8 @@ void SaveGameHandler::saveDigimon(Digimon* digimon) {
     EEPROM.put(ADDRESS_EFFORT,digimon->getEffort());
     EEPROM.put(ADDRESS_DIGIMONPOWER,digimon->getDigimonPower());
     EEPROM.put(FEED_TIMER,digimon->getFeedTimer());
+    // persist lights and sleep-flag
+    EEPROM.put(ADDRESS_LIGHTS, digimon->isLightsOn());
+    EEPROM.put(ADDRESS_SLEEP_LOGGED, digimon->isSleepCareMistakeLogged());
     EEPROM.commit();
 }

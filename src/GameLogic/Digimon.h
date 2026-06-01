@@ -38,11 +38,12 @@
 
 #define STATE_EGG 0
 #define STATE_AWAKE 1
-#define STATE_ASLEEP 2
-#define STATE_SICK 3
-#define STATE_INJURED 4
-#define STATE_BATTLING 5
-#define STATE_DEAD 6
+#define STATE_TIRED 2
+#define STATE_ASLEEP 3
+#define STATE_SICK 4
+#define STATE_INJURED 5
+#define STATE_BATTLING 6
+#define STATE_DEAD 7
 
 struct DigimonProperties {
     char* digiName; //Name of the Digimon
@@ -141,6 +142,13 @@ class Digimon{
         unsigned long evolutionTimer;
         unsigned long feedTimer;
 
+        //sleep related flags
+        // default lights ON so newly hatched digimon don't immediately auto-sleep
+        boolean lightsOn = true;
+        boolean forcedAsleep = false;
+        // avoid counting the same "lights kept on" care mistake multiple times per night
+        boolean sleepCareMistakeLogged = false;
+
         void updateTimers(unsigned long delta);
 
 
@@ -192,9 +200,13 @@ class Digimon{
         uint8_t getStrengthHearts(){return std::round(4.0 * getStrength() / 10.0);};
         uint8_t getEffortHearts(){return std::round(4.0 * getEffort() / 10.0);};
 
-
         void printSerial();
-        void reduceHunger(int8_t amount){hunger-=amount;};
+        void reduceHunger(int8_t amount){
+            int newH = (int)hunger - (int)amount;
+            if(newH < 0) newH = 0;
+            if(forcedAsleep && newH < 2) newH = 2;
+            hunger = (uint8_t)newH;
+        };
         void increaseHunger(int8_t amount){hunger+=amount;};
         void addWeight(int8_t w){weight+=w;};
         void loseWeight(int8_t w){weight-=w;};
@@ -202,4 +214,12 @@ class Digimon{
         void loseStrength(int8_t s){strength -=s;};
 
         void addDigimonPower(int8_t dp){digimonPower+=dp;};
+
+        //sleep / lights control
+        void setLightsOn(bool v){lightsOn = v;};
+        bool isLightsOn(){return lightsOn;};
+        void setForcedAsleep(bool v){forcedAsleep = v;};
+        bool isForcedAsleep(){return forcedAsleep;};
+        void setSleepCareMistakeLogged(bool v){ sleepCareMistakeLogged = v; };
+        bool isSleepCareMistakeLogged(){ return sleepCareMistakeLogged; };
 };

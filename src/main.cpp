@@ -25,10 +25,12 @@
 #include "GameLogic/ScreenStateMachine.h"
 
 #include "GameLogic/Digimon.h"
+#include "SaveGame/SaveGameHandler.h"
 
 
 uint16_t digiIndex =DIGIMON_EGG;
 Digimon digimon(digiIndex);
+SaveGameHandler savegame;
 
 //ESP32 Specific stuff
 #include "VPetLCD/DisplayAdapter/TFT_eSPI_Displayadapter.h"
@@ -48,8 +50,8 @@ Digimon digimon(digiIndex);
 Button2 btn1(BUTTON_1);
 Button2 btn2(BUTTON_2);
 
-int hours = 22;
-int minutes = 59;
+int hours = 18;
+int minutes = 50;
 int seconds = 0;
 
 boolean buttonPressed = false;
@@ -84,12 +86,13 @@ V20::PercentageScreen sPercentageScreen("WIN", 'S', 100);
 V20::PercentageScreen tPercentageScreen("WIN", 'T', 93);
 V20::SelectionScreen foodSelection(true);
 V20::SelectionScreen fightSelection(true);
+V20::SelectionScreen lightSelection(true);
 V20::SleepingAnimationScreen sleepingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 V20::ClockScreen clockScreen(false);
 V20::EatingAnimationScreen eatingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 
-//13 screens and 3 signals (one for each button)
-uint8_t numberOfScreens = 14;
+//14 screens and 3 signals (one for each button)
+uint8_t numberOfScreens = 15;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -111,11 +114,14 @@ uint8_t sPercentageScreenId = stateMachine.addScreen(&sPercentageScreen);
 uint8_t tPercentageScreenId = stateMachine.addScreen(&tPercentageScreen);
 uint8_t foodSelectionId = stateMachine.addScreen(&foodSelection);
 uint8_t fightSelectionId = stateMachine.addScreen(&fightSelection);
+uint8_t lightSelectionId = stateMachine.addScreen(&lightSelection);
 uint8_t clockScreenId = stateMachine.addScreen(&clockScreen);
 uint8_t eatingAnimationScreenId = stateMachine.addScreen(&eatingAnimationScreen);
 uint8_t sleepingAnimationScreenId = stateMachine.addScreen(&sleepingAnimationScreen);
 
 uint8_t poop=0;
+// flag to indicate lightSelection was opened from sleeping screen
+bool lightSelectionOpenedFromSleep = false;
 
 void stateMachineInit() {
   const DigimonProperties *properties = dataLoader.getDigimonProperties(digimon.getDigimonIndex());
@@ -125,6 +131,12 @@ void stateMachineInit() {
   //return to food selection screen after showing eating animation
   eatingAnimationScreen.setAnimationEndAction([]() {
     stateMachine.setCurrentScreen(foodSelectionId);
+  });
+
+  //return to digimon watching screen after sleeping animation
+  sleepingAnimationScreen.setAnimationEndAction([](){
+    stateMachine.setCurrentScreen(digimonScreenId);
+    screen.setForceBlackScreen(false);
   });
 
   // in order to be able to go back to the digimon watching screen
@@ -143,7 +155,7 @@ void stateMachineInit() {
   stateMachine.addTransition(dpScreenId, sPercentageScreenId, nextSignal);
   stateMachine.addTransition(sPercentageScreenId, tPercentageScreenId, nextSignal);
   stateMachine.addTransition(tPercentageScreenId, digiNameScreenId, nextSignal);
-  stateMachine.addTransition(sleepingAnimationScreenId, digiNameScreenId, nextSignal);
+  // Do not allow `nextSignal` to interrupt sleep; waking should be handled by confirm or animation end
 
   //Transitions between clock screen and digimon watching screen
   stateMachine.addTransition(digimonScreenId, clockScreenId, backSignal);
@@ -163,6 +175,12 @@ void stateMachineInit() {
   stateMachine.addTransition(digimonScreenId, digimonScreenId, confirmSignal);
   stateMachine.addTransitionAction(digimonScreenId, confirmSignal, []() {
     //uint8_t maxdp = digimon.getProperties()->maxDigimonPower;
+    // If digimon is asleep, only allow stats (0) and sleep (5)
+    if(digimon.getState() == STATE_ASLEEP){
+      uint8_t sel = menuBar.getSelection();
+      if(sel != 0 && sel != 5) return;
+    }
+
     switch (menuBar.getSelection()) {
     case 0: // stats screen
       digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
@@ -181,6 +199,9 @@ void stateMachineInit() {
       stateMachine.setCurrentScreen(digiNameScreenId);
       break;
     case 1: // feed
+      if (digimon.getState() == STATE_EGG){
+        break; // don't allow sleeping if still an egg
+      }
       foodSelection.setSelection(0);
       stateMachine.setCurrentScreen(foodSelectionId);
       break;
@@ -188,6 +209,9 @@ void stateMachineInit() {
 
       break;
     case 3: //fight (this is not set up yet as no fight logic)
+      if (digimon.getState() == STATE_EGG){
+        break; // don't allow sleeping if still an egg
+      }
       fightSelection.setSelection(0);
       stateMachine.setCurrentScreen(fightSelectionId);
       break;
@@ -196,9 +220,13 @@ void stateMachineInit() {
       digimonScreen.flushPoop();
       digimon.setNumberOfPoops(0);
       break;
-    case 5: //sleep
-    stateMachine.setCurrentScreen(sleepingAnimationScreenId);
-    break;
+    case 5: //sleep -> ask for lights ON/OFF
+      if (digimon.getState() == STATE_EGG){
+        break; // don't allow sleeping if still an egg
+      }
+      lightSelection.setSelection(0);
+      stateMachine.setCurrentScreen(lightSelectionId);
+      break;
     case 6: //cure
       break;
     }
@@ -233,6 +261,75 @@ void stateMachineInit() {
     }
     });
 
+  // Light on/off selection transitions
+  stateMachine.addTransition(lightSelectionId, lightSelectionId, nextSignal);
+  stateMachine.addTransitionAction(lightSelectionId, nextSignal, []() {
+    lightSelection.nextSelection();
+  });
+
+  stateMachine.addTransition(lightSelectionId, lightSelectionId, confirmSignal);
+  stateMachine.addTransitionAction(lightSelectionId, confirmSignal, []() {
+    uint8_t selection = lightSelection.getSelection();
+    Serial.println(String("Light selection confirm pressed, sel=") + String(selection));
+    switch(selection){
+      case 0: // ON
+        digimon.setLightsOn(true);
+        // If we opened the light menu from sleep, keep the digimon asleep and
+        // reveal the light menu so the user can see the confirmation state.
+        if(lightSelectionOpenedFromSleep){
+          Serial.println("Light ON selected from sleep — keep asleep, reveal menu");
+          // keep digimon asleep; just reveal the display so menu is visible
+          screen.setForceBlackScreen(false);
+          savegame.saveDigimon(&digimon);
+          // remain on the lightSelection screen so the user sees the result
+          lightSelectionOpenedFromSleep = false;
+        } else {
+          // normal flow: turn lights on and restore display; set TIRED if not asleep
+          digimon.setForcedAsleep(false);
+          if(digimon.getState() != STATE_ASLEEP){
+            digimon.setState(STATE_TIRED);
+          }
+          screen.setForceBlackScreen(false);
+          savegame.saveDigimon(&digimon);
+          stateMachine.setCurrentScreen(digimonScreenId);
+        }
+        break;
+      case 1: // OFF
+        digimon.setLightsOn(false);
+        digimon.setForcedAsleep(true);
+        // only transition to ASLEEP if current time is within the digimon's sleep window
+        {
+          const DigimonProperties* props = digimon.getProperties();
+          int currentMins = hours * 60 + minutes;
+          int sleepMins = props->sleepHour * 60;
+          int wakeMins = props->wakeUpHour * 60;
+          bool inSleepWindow = false;
+          if (sleepMins <= wakeMins) {
+            inSleepWindow = (currentMins >= sleepMins && currentMins < wakeMins);
+          } else {
+            // overnight window (e.g., 22:00 -> 08:00)
+            inSleepWindow = (currentMins >= sleepMins || currentMins < wakeMins);
+          }
+
+          if (inSleepWindow) {
+            digimon.setState(STATE_ASLEEP);
+            sleepingAnimationScreen.startAnimation();
+            stateMachine.setCurrentScreen(sleepingAnimationScreenId);
+            // now that we've moved to the sleeping animation, blacken the display
+            screen.setForceBlackScreen(true);
+          } else {
+            // don't force asleep outside sleeping hours; mark as tired if awake
+            if (digimon.getState() == STATE_AWAKE) {
+              digimon.setState(STATE_TIRED);
+            }
+            stateMachine.setCurrentScreen(digimonScreenId);
+          }
+        }
+        savegame.saveDigimon(&digimon);
+        break;
+    }
+  });
+
     //go back to food selection if pressed confirm again
     stateMachine.addTransition(eatingAnimationScreenId, foodSelectionId, confirmSignal);
     //abort animation
@@ -246,23 +343,42 @@ void stateMachineInit() {
     fightSelection.nextSelection();
   });
 
+  // allow menu navigation while sleeping animation is active
+  stateMachine.addTransition(sleepingAnimationScreenId, sleepingAnimationScreenId, nextSignal);
+  stateMachine.addTransitionAction(sleepingAnimationScreenId, nextSignal, []() {
+    menuBar.nextSelection();
+  });
+
   //sleep functionality
   stateMachine.addTransition(sleepingAnimationScreenId, sleepingAnimationScreenId, confirmSignal);
   stateMachine.addTransitionAction(sleepingAnimationScreenId, confirmSignal, []() {
-  Serial.println("Sleep button pressed");
     Serial.println("Sleep button pressed");
-    switch(digimon.getState()){
-    case 0: //if not already sleeping
+    // If the menu is currently set to the Lights icon, open the light selection
+    // instead of immediately waking — this lets the user choose ON/OFF while asleep.
+    if(menuBar.getSelection() == 5){
+      Serial.println("Opening light selection from sleeping screen");
+      lightSelection.setSelection(0);
+      // mark that we opened the light selection from the sleeping flow
+      lightSelectionOpenedFromSleep = true;
+      // reveal the light selection menu immediately so the user can see ON/OFF
+      screen.setForceBlackScreen(false);
+      stateMachine.setCurrentScreen(lightSelectionId);
+      return;
+    }
+
+    Serial.println("Sleep button pressed");
+    if(digimon.getState() != STATE_ASLEEP){
       Serial.println("going to Sleep");
-      //digimon.setState(11); //set state to sleeping
+      digimon.setState(STATE_ASLEEP);
       sleepingAnimationScreen.startAnimation();
       stateMachine.setCurrentScreen(sleepingAnimationScreenId);
-      break;
-    case 11:
+      screen.setForceBlackScreen(true);
+    } else {
       Serial.println("waking up");
-      //digimon.setState(0); //set state to awake
+      digimon.setState(STATE_AWAKE);
+      digimon.setForcedAsleep(false);
+      screen.setForceBlackScreen(false);
       stateMachine.setCurrentScreen(digimonScreenId);
-      break;
     }
   }); 
 
@@ -281,7 +397,46 @@ void button_init()
     });
 
   btn2.setPressedHandler([](Button2& b) {
-    stateMachine.sendSignal(confirmSignal);
+    Serial.println("Button2 pressed: confirm handler");
+    // if display is forced black, either forward the confirm to the state machine
+    // when sleeping animation is active (so the user can select lights), or wake directly
+    if(screen.isForceBlackScreen()){
+      uint8_t curId = stateMachine.getCurrentScreenId();
+      // If we're on the sleeping animation or the light selection, forward the confirm
+      // so the user can interact with the light menu even while the VPET area is black.
+      if(curId == sleepingAnimationScreenId || curId == lightSelectionId){
+        Serial.println("Screen is black — forwarding confirm to state machine (sleep/light)");
+        bool sent = stateMachine.sendSignal(confirmSignal);
+        Serial.println(String("confirmSignal sent: ") + String(sent));
+        VPetLCD::Screen* cur = stateMachine.getCurrentScreen();
+        Serial.println(String("CurrentScreenId: ") + String(stateMachine.getCurrentScreenId()));
+        if(cur == &lightSelection) Serial.println("Current screen: lightSelection");
+        else if(cur == &digimonScreen) Serial.println("Current screen: digimonScreen");
+        else if(cur == &sleepingAnimationScreen) Serial.println("Current screen: sleepingAnimationScreen");
+        else if(cur == &eatingAnimationScreen) Serial.println("Current screen: eatingAnimationScreen");
+        buttonPressed = true;
+        return;
+      }
+
+      Serial.println("Screen is black — waking directly");
+      digimon.setState(STATE_AWAKE);
+      digimon.setForcedAsleep(false);
+      screen.setForceBlackScreen(false);
+      stateMachine.setCurrentScreen(digimonScreenId);
+      buttonPressed = true;
+      return;
+    }
+    Serial.println("sending confirmSignal");
+    bool sent = stateMachine.sendSignal(confirmSignal);
+    Serial.println(String("confirmSignal sent: ") + String(sent));
+    // debug: print which screen is now active
+    VPetLCD::Screen* cur = stateMachine.getCurrentScreen();
+    Serial.println(String("CurrentScreenId: ") + String(stateMachine.getCurrentScreenId()));
+    if(cur == &lightSelection) Serial.println("Current screen: lightSelection");
+    else if(cur == &digimonScreen) Serial.println("Current screen: digimonScreen");
+    else if(cur == &sleepingAnimationScreen) Serial.println("Current screen: sleepingAnimationScreen");
+    else if(cur == &eatingAnimationScreen) Serial.println("Current screen: eatingAnimationScreen");
+    else Serial.println("Current screen: unknown");
     buttonPressed = true;
     });
 }
@@ -320,6 +475,11 @@ void setupScreens()
   //adding the food selection options
   foodSelection.addOption("Meat", SYMBOL_MEAT);
   foodSelection.addOption("PILL", SYMBOL_PILL);
+
+  //light selection options
+  lightSelection.setShowIcons(false);
+  lightSelection.addOption("ON");
+  lightSelection.addOption("OFF");
 
   //adding the battle options
   fightSelection.setShowIcons(false);
@@ -385,6 +545,9 @@ Serial.println("button_init");
   Serial.println("setupScreens");
   setupScreens();
   
+  // init savegame (EEPROM)
+  savegame.init();
+
   stateMachineInit();
   Serial.println("stateMachineInit");
 
@@ -394,6 +557,8 @@ Serial.println("button_init");
 unsigned long ticker = 0;
 unsigned long tickerResetValue = 1000;
 unsigned long lastDelta = 0;
+unsigned long clockAccMs = 0;
+unsigned long lastEvolutionMs = 0;
 float getFragmentation() ;
 boolean debug=false;
 
@@ -420,10 +585,24 @@ void loop()
     digimon.setEvolved(false);
     digimonScreen.evolveDigimon();
     digimon.setProperties(dataLoader.getDigimonProperties(digimon.getDigimonIndex()));
-    Serial.println("Evolved to: "+String(digimon.getProperties()->digiName));
-    if(digimon.getState() == 0){
-      digimon.setState(1);
+
+    // if we just hatched/evolved from egg, set initial state for new digimon
+    // prefer TIRED if we are near/after its sleep hour so the player can decide lights
+    const DigimonProperties* newProps = digimon.getProperties();
+    // set initial state for newly evolved digimon (regardless of previous state)
+    int currentMins = hours * 60 + minutes;
+    int sleepMins = newProps->sleepHour * 60;
+    int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
+    int minutesSinceSleep = (currentMins - sleepMins + 24*60) % (24*60);
+
+    if(minutesUntilSleep <= 30 || (minutesSinceSleep > 0)){
+      digimon.setState(STATE_TIRED);
+    } else {
+      digimon.setState(STATE_AWAKE);
     }
+    // record evolution time to avoid immediate auto-sleeping
+    lastEvolutionMs = millis();
+    digimon.setForcedAsleep(false);
 
     // Ensure animation screens and name screen use the new digimon index after evolution
     // (they were constructed with the old index and need to be updated)
@@ -434,6 +613,86 @@ void loop()
 
   buttonPressed = false;
 
+  // update internal clock and handle sleep/wake transitions once per second
+  clockAccMs += lastDelta;
+  while(clockAccMs >= 1000){
+    clockAccMs -= 1000;
+    seconds++;
+    if(seconds >= 60){ seconds = 0; minutes++; }
+    if(minutes >= 60){ minutes = 0; hours = (hours + 1) % 24; }
+    clockScreen.setHours(hours);
+    clockScreen.setMinutes(minutes);
+    clockScreen.setSeconds(seconds);
+
+    const DigimonProperties* props = digimon.getProperties();
+    if(props != NULL){
+      int currentMins = hours * 60 + minutes;
+      int sleepMins = props->sleepHour * 60;
+      int wakeMins = props->wakeUpHour * 60;
+      int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
+      int minutesSinceSleep = (currentMins - sleepMins + 24*60) % (24*60);
+
+      // skip sleep logic for egg state
+      if(digimon.getState() != STATE_EGG){
+        // 30 minutes before sleep -> TIRED (normal case)
+        if(minutesUntilSleep == 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
+          digimon.setState(STATE_TIRED);
+        }
+
+        // If current time is after sleep time but within 30 minutes, ensure the digimon is TIRED
+        if(minutesSinceSleep > 0 && minutesSinceSleep < 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
+          digimon.setState(STATE_TIRED);
+        }
+
+        // If 30 or more minutes have passed since sleep time:
+        // - if lights are OFF -> transition to ASLEEP
+        // - if lights are ON -> remain TIRED but count a care mistake (owner kept lights on)
+        if(minutesSinceSleep >= 30){
+          if(digimon.isLightsOn()){
+            // count care mistake once when lights are kept on past sleep
+            if(!digimon.isSleepCareMistakeLogged()){
+              digimon.setCareMistakes(digimon.getCareMistakes()+1);
+              digimon.setSleepCareMistakeLogged(true);
+            }
+            // stay TIRED (do not auto-sleep while lights are on)
+            digimon.setState(STATE_TIRED);
+          } else {
+              // lights are off -> allow sleeping, but don't auto-sleep immediately after evolution
+              if(digimon.getState() != STATE_ASLEEP){
+                bool allowSleep = true;
+                if(lastEvolutionMs != 0 && (millis() - lastEvolutionMs) < 60000){
+                  allowSleep = false;
+                }
+                if(allowSleep){
+                  digimon.setState(STATE_ASLEEP);
+                  sleepingAnimationScreen.startAnimation();
+                  stateMachine.setCurrentScreen(sleepingAnimationScreenId);
+                  // blacken display for auto-sleep as well
+                  screen.setForceBlackScreen(true);
+                } else {
+                  // keep tired until player toggles lights or the grace period expires
+                  digimon.setState(STATE_TIRED);
+                }
+              }
+            }
+        }
+      }
+
+      // wake up at wakeUpHour
+      if(currentMins == wakeMins && digimon.getState() == STATE_ASLEEP){
+        digimon.setState(STATE_AWAKE);
+        digimon.setForcedAsleep(false);
+        // restore lights to ON when waking and clear night's logged flag
+        digimon.setLightsOn(true);
+        // restore display when waking
+        screen.setForceBlackScreen(false);
+        digimon.setSleepCareMistakeLogged(false);
+        savegame.saveDigimon(&digimon);
+        stateMachine.setCurrentScreen(digimonScreenId);
+      }
+    }
+  }
+  
   if (debug == true)
   {
     //here should be debug stuff but its only fps lol

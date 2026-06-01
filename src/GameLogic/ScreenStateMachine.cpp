@@ -1,4 +1,5 @@
 #include "ScreenStateMachine.h"
+#include <Arduino.h>
 
 /**
  * Constructor initilizing the inner structure of the Class. The starting screen is the first screen added.
@@ -126,11 +127,18 @@ boolean ScreenStateMachine::sendSignal(uint8_t signalId) {
     if (signalId >= numberOfSignals) {
         return false;
     }
-
+    Serial.println(String("sendSignal called: signal=") + String(signalId) + String(", current=") + String(currentScreenId));
     uint8_t nextScreenId = transitions[getIndex(currentScreenId)][signalId];
     uint8_t oldCurrentScreenId = currentScreenId;
     if (nextScreenId > 0) {
 
+
+        Serial.println(String("transition: ") + String(oldCurrentScreenId) + " -> " + String(nextScreenId));
+        if( transitionActions[getIndex(oldCurrentScreenId)][signalId] != NULL){
+            Serial.println("transitionAction exists, will call it");
+        } else {
+            Serial.println("no transitionAction for this transition");
+        }
 
         currentScreenId = nextScreenId;
 
@@ -141,6 +149,7 @@ boolean ScreenStateMachine::sendSignal(uint8_t signalId) {
         return true;
     }    
 else {
+        Serial.println("no transition defined for this signal on current screen");
         return false;
     }
 }
@@ -158,3 +167,7 @@ VPetLCD::Screen* ScreenStateMachine::getCurrentScreen() {
  * @param screenId the screen to be set
  */
 void ScreenStateMachine::setCurrentScreen(uint8_t screenId){currentScreenId = screenId;}
+
+uint8_t ScreenStateMachine::getCurrentScreenId(){
+    return currentScreenId;
+}

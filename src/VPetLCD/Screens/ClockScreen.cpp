@@ -6,8 +6,6 @@
 
 #include "ClockScreen.h"
 
-
-
 V20::ClockScreen::ClockScreen(boolean _showAMPM) {
   showAMPM = _showAMPM;
   isSetMode = false;

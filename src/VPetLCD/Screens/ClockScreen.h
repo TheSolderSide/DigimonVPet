@@ -30,8 +30,6 @@ namespace V20 {
     void setMinutes(uint8_t _minutes) { minutes = _minutes; }
     void setSeconds(uint8_t _seconds) { seconds = _seconds; }
 
- 
-
     void draw(VPetLCD* lcd);
 
   };

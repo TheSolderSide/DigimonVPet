@@ -12,6 +12,9 @@
             barHeight=SPRITES_MENU_RESOLUTION;//standard is the height of the icons
             iconsPerPage=_iconsPerPage;
 
+            // initialize selection to first item
+            currentSelection = 0;
+
 
             iconColor=0x64EA;
             selectionColor=0x0001;
@@ -29,8 +32,8 @@
          * */
         void VPetLCDMenuBar32p::nextSelection(){
             currentSelection++;
-            if(currentSelection == numberOfMenuItems){
-                currentSelection =-1;
+            if(currentSelection >= numberOfMenuItems){
+                currentSelection = 0;
             }
         }
 

@@ -57,6 +57,7 @@ public:
     boolean sendSignal(uint8_t signalId);
 
     VPetLCD::Screen* getCurrentScreen();
+    uint8_t getCurrentScreenId();
 
     void setCurrentScreen(uint8_t screenId);
     

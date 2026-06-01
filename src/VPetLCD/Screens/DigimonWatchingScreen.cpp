@@ -51,26 +51,48 @@ void V20::DigimonWatchingScreen::loop(long delta) {
     poopAnimationCounter%=2;
     calculateWalking();
     }
+    // update sleeping symbol breathing offset each frame
+    if(digimon->getState() == STATE_ASLEEP){
+      if(sleepingSymbolGoingUp) sleepingSymbolOffset++;
+      else sleepingSymbolOffset--;
+      if(sleepingSymbolOffset > 1) sleepingSymbolGoingUp = false;
+      if(sleepingSymbolOffset < -1) sleepingSymbolGoingUp = true;
+    } else {
+      sleepingSymbolOffset = 0;
+      sleepingSymbolGoingUp = true;
+    }
   }
 }
 
 void V20::DigimonWatchingScreen::calculateWalking() {
+  bool isTired = (digimon->getState() == STATE_TIRED);
+  bool isAsleep = (digimon->getState() == STATE_ASLEEP);
+  bool isEgg = (digimon->getState() == STATE_EGG);
 
-  if (digimon->getState() != 0 && randomDecision(probabilityChangeDirection) || digimonX < minX || digimonX > maxX - digimon->getNumberOfPoops() * poopWidth) {
+  // change facing only when not asleep
+  if (!isEgg && !isAsleep && (randomDecision(probabilityChangeDirection) || digimonX < minX || digimonX > maxX - digimon->getNumberOfPoops() * poopWidth)) {
     looksLeft = !looksLeft;
   }
 
-  if (digimon->getState() != 0 && randomDecision(probabilityChangeDirection) || digimonY < minY || digimonY > maxY) {
+  if (isAsleep && (randomDecision(probabilityChangeDirection) || digimonY < minY || digimonY > maxY)) {
     looksUp = !looksUp;
   }
 
-  if (randomDecision(probabilityChangeWalkingSprite) || currentWalkSprite == 2) {
-    //first two sprites are the walking animations
-    currentWalkSprite++;
-    currentWalkSprite %= 2;
+  if(isAsleep){
+    // while asleep, use the sleeping sprite (handled in draw)
+    currentWalkSprite = SPRITE_DIGIMON_SLEEPING;
+  } else if(isTired){
+    // while tired, use the tired sprite for display
+    currentWalkSprite = SPRITE_DIGIMON_TIRED;
+  } else {
+    if (!isEgg && randomDecision(probabilityChangeWalkingSprite) || currentWalkSprite == 2) {
+      //first two sprites are the walking animations
+      currentWalkSprite++;
+      currentWalkSprite %= 2;
+    }
   }
 
-  if (digimon->getState() != 0 && randomDecision(probabilityMoveVertical)) {
+  if (!isEgg && !isAsleep && randomDecision(probabilityMoveVertical)) {
     if (looksUp) {
       if (digimonY < maxY - 1) {
         digimonY++;
@@ -93,7 +115,7 @@ void V20::DigimonWatchingScreen::calculateWalking() {
     }
   }
 
-  if(digimon->getState() != 0){
+  if(!isEgg && !isAsleep){
     if (looksLeft) {
       if (digimonX > minX + 1) {
         digimonX--;
@@ -116,10 +138,17 @@ void V20::DigimonWatchingScreen::calculateWalking() {
     }
   }
 
-  //with probability of 5% make some other moves
-  if (randomDecision(probabilityMakeAnotherMove)) {
+  //with probability of 5% make some other moves (skip when tired/asleep)
+  if (!isTired && !isAsleep && !isEgg && randomDecision(probabilityMakeAnotherMove)) {
     currentWalkSprite = SPRITE_DIGIMON_HAPPY;
   }
+
+  // Enforce boundaries to avoid walking off the screen
+  int maxAllowedX = maxX - 1 - digimon->getNumberOfPoops() * poopWidth;
+  if(digimonX < minX) digimonX = minX;
+  if(digimonX > maxAllowedX) digimonX = maxAllowedX;
+  if(digimonY < minY) digimonY = minY;
+  if(digimonY > maxY) digimonY = maxY;
 }
 
 /**
@@ -171,5 +200,36 @@ void V20::DigimonWatchingScreen::drawSleeping(VPetLCD* lcd, boolean inBed) {
  * */
 void V20::DigimonWatchingScreen::draw(VPetLCD* lcd) {
   drawPoop(lcd);
-  drawWakedUp(lcd);
+  // show different sprites depending on digimon state
+  if(digimon->getState() == STATE_ASLEEP) {
+    // while asleep, keep the digimon horizontally centered and draw sleeping symbol relative to that
+    int centerX = (minX + maxX) / 2; // center within allowed movement bounds
+    // draw the sleeping sprite at the computed center position
+    const unsigned short* sprite = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_SLEEPING);
+    lcd->draw16BitArray(sprite, screenX + centerX, screenY + digimonY, !looksLeft, pixelColor);
+
+    // draw sleeping symbol so its bottom-center aligns with the digimon's top-center
+    const int symbolW = SPRITES_SYMBOL_RESOLUTION;
+    const int symbolH = SPRITES_SYMBOL_RESOLUTION;
+    const int digiW = SPRITES_DIGIMON_RESOLUTION;
+    int symbolY = screenY + digimonY - symbolH + sleepingSymbolOffset; // place above the digimon (with breathing offset)
+    int symbolX;
+    // place symbol to the side of the digimon depending on facing
+    if(looksLeft){
+      // place to left of digimon
+      symbolX = screenX + centerX - symbolW; 
+    } else {
+      // place to right of digimon
+      symbolX = screenX + centerX + digiW;
+    }
+    // clamp to screen bounds
+    if(symbolX < 0) symbolX = 0;
+    if(symbolY < 0) symbolY = 0;
+    lcd->drawSymbol(SYMBOL_SLEEPING, symbolX, symbolY, false, pixelColor);
+  } else if(digimon->getState() == STATE_TIRED) {
+    const unsigned short* sprite = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_TIRED);
+    lcd->draw16BitArray(sprite, screenX + digimonX, screenY + digimonY, !looksLeft, pixelColor);
+  } else {
+    drawWakedUp(lcd);
+  }
 }

@@ -38,6 +38,7 @@ class VPetLCD {
     uint16_t backgroundColor = 0x86CE;
     uint16_t lcdInprintColor = 0x64EA;//0xAFF1;
     uint16_t lcdSelectionColor = 0x0001;
+    bool forceBlackScreen = false;
 
     void startRendering();
     void endRendering();
@@ -102,12 +103,23 @@ class VPetLCD {
 
     //Renders the Content of the Virtual LCD according to the Screen Object
     void renderScreen(Screen *s){
-        startRendering();
-        s->draw(this);
-        endRendering();
+      if(forceBlackScreen){
+        // render only the VPET LCD area as black so the menu bar remains visible
+        canvas->fillRect(lcdX, lcdY, lcdScale * lcdWidth, lcdScale * lcdHeight, 0x0000);
+        // draw the menu bar on top so it's still visible
+        drawMenu();
+        // push the composed canvas (use a non-black transparency value so black isn't treated as transparent)
+        canvas->pushCanvas(0, 0, 0xFFFF);
+        return;
+      }
+      startRendering();
+      s->draw(this);
+      endRendering();
     }
 
     void setMenuBar(VPetLCDMenuBar32p* _menuBar);
+    void setForceBlackScreen(bool v){ forceBlackScreen = v; };
+    bool isForceBlackScreen(){ return forceBlackScreen; };
 
 
 

@@ -21,6 +21,9 @@
 #define ADDRESS_EVOLUTIONETIMER 25 //4byte
 #define ADDRESS_DIGIMONPOWER 26 //1byte
 #define FEED_TIMER 27 //4byte
+// flags
+#define ADDRESS_LIGHTS 31 //1byte
+#define ADDRESS_SLEEP_LOGGED 32 //1byte
 
 class SaveGameHandler{
 
