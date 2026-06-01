@@ -424,13 +424,13 @@ void loop()
     if(digimon.getState() == 0){
       digimon.setState(1);
     }
-  }
 
-  // Ensure animation screens and name screen use the new digimon index after evolution
-  // (they were constructed with the old index and need to be updated)
-  eatingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
-  sleepingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
-  digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    // Ensure animation screens and name screen use the new digimon index after evolution
+    // (they were constructed with the old index and need to be updated)
+    eatingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    sleepingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  }
 
   buttonPressed = false;
 
