@@ -6,7 +6,7 @@
 
 #include "DigimonNameScreen.h"
 
-V20::DigimonNameScreen::DigimonNameScreen(AbstractSpriteManager* _spriteManager,char _digimonName[], uint16_t _digimonSpriteIndex, uint16_t _scrollBoxWidth) {
+V20::DigimonNameScreen::DigimonNameScreen(AbstractSpriteManager* _spriteManager,const char _digimonName[], uint16_t _digimonSpriteIndex, uint16_t _scrollBoxWidth) {
 
   int namelength = strlen(_digimonName);
   char* buf = new char[namelength + 1];
@@ -55,7 +55,7 @@ void V20::DigimonNameScreen::scrollText() {
 }
 
 
-void V20::DigimonNameScreen::drawScrollBoxOnLCD(VPetLCD* lcd, char text[], int16_t boxWidth, int16_t currentOffsetX, int16_t OnLcdX, int16_t OnLcdY, uint16_t color) {
+void V20::DigimonNameScreen::drawScrollBoxOnLCD(VPetLCD* lcd, const char text[], int16_t boxWidth, int16_t currentOffsetX, int16_t OnLcdX, int16_t OnLcdY, uint16_t color) {
 
   //  drawNegatedLetterOnLCD(char c, OnLcdX, OnLcdX+boxWidth,  OnLcdX, OnLcdY, color);
   calculateTextWidth(lcd);

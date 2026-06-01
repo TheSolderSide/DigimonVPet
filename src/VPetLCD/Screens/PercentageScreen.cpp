@@ -8,7 +8,7 @@
 
 
 
-V20::PercentageScreen::PercentageScreen(char _text[],char _bottomChar, uint16_t _percentage){
+V20::PercentageScreen::PercentageScreen(const char _text[],char _bottomChar, uint16_t _percentage){
 
     int textlength = strlen(_text);
     char *buf = new char[textlength+1];

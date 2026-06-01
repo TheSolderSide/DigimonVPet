@@ -15,7 +15,7 @@ namespace V20{
       uint16_t fillPercentage;
 
     public:
-      ProgressBarScreen(char _text[], uint16_t _barLength, uint16_t _fillPercentage);
+      ProgressBarScreen(const char _text[], uint16_t _barLength, uint16_t _fillPercentage);
       void draw(VPetLCD *lcd);
       void setFillPercentage(uint16_t _fillPercentage){fillPercentage=_fillPercentage;};
 

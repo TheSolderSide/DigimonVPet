@@ -17,7 +17,7 @@ namespace V20{
       char* text;
 
     public:
-      HeartsScreen(char _text[], uint16_t _hearts, uint16_t _maxHearts);
+      HeartsScreen(const char _text[], uint16_t _hearts, uint16_t _maxHearts);
       void draw(VPetLCD *lcd);
       void setHearts(uint16_t _hearts){hearts=_hearts;};
       void setMaxHearts(uint16_t _maxHearts){maxHearts=_maxHearts;};

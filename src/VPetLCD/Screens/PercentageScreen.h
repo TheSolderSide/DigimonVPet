@@ -20,7 +20,7 @@ namespace V20{
       uint16_t percentage;
 
     public:
-      PercentageScreen(char _text[], char _bottomChar, uint16_t _percentage);
+      PercentageScreen(const char _text[], char _bottomChar, uint16_t _percentage);
       void draw(VPetLCD *lcd);
       void setPercentage(uint16_t _percentage){percentage=_percentage;};
 

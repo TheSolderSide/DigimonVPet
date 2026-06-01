@@ -16,10 +16,10 @@ V20::SelectionScreen::SelectionScreen(boolean _showIcons){
        showText=true;
 
 };
-void V20::SelectionScreen::addOption(char text[]){
-    int textlength = strlen(text);
-    char *buf = new char[textlength+1];
-    strcpy(buf,text);
+void V20::SelectionScreen::addOption(const char text[]){
+  int textlength = strlen(text);
+  char *buf = new char[textlength+1];
+  strcpy(buf,text);
     
     if(nOptions < MAX_OPTIONS){
         selectionText[nOptions] = buf;
@@ -30,8 +30,8 @@ void V20::SelectionScreen::addOption(char text[]){
     }
 
 }
-void V20::SelectionScreen::addOption(char text[],uint8_t symbolIndex){
-    addOption(text);
+void V20::SelectionScreen::addOption(const char text[],uint8_t symbolIndex){
+  addOption(text);
     selectionIconIndex[nOptions-1] = symbolIndex;
 }
 

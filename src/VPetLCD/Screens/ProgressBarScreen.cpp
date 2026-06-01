@@ -7,7 +7,7 @@
 #include "ProgressBarScreen.h"
 
 
-V20::ProgressBarScreen::ProgressBarScreen(char _text[], uint16_t _barLength, uint16_t _fillPercentage){
+V20::ProgressBarScreen::ProgressBarScreen(const char _text[], uint16_t _barLength, uint16_t _fillPercentage){
 
     int textlength = strlen(_text);
     char *buf = new char[textlength+1];

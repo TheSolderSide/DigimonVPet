@@ -3,6 +3,12 @@
   Created by Berat Özdemir, January 24 , 2021.
 */
 /////////////////////////////////////////////////////////////////
+/*
+  Created by Berat Özdemir, January 24 , 2021.
+*/
+/////////////////////////////////////////////////////////////////
+
+#pragma once
 
 #include "../VPetLCD.h"
 
@@ -34,8 +40,8 @@ namespace V20{
       void setShowIcons(boolean b){showIcons=b;};
       void setShowText(boolean b){showText=b;};
       
-      void addOption(char text[]);
-      void addOption(char text[],uint8_t symbolIndex);
+      void addOption(const char text[]);
+      void addOption(const char text[],uint8_t symbolIndex);
 
       void setIcon(uint8_t optionIndex, uint8_t symbolIndex);
 

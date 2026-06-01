@@ -7,7 +7,7 @@
 #include "HeartsScreen.h"
 
 
-V20::HeartsScreen::HeartsScreen(char _text[], uint16_t _hearts, uint16_t _maxHearts){
+V20::HeartsScreen::HeartsScreen(const char _text[], uint16_t _hearts, uint16_t _maxHearts){
   int textlength = strlen(_text);
   char *buf = new char[textlength+1];
   strcpy(buf,_text);

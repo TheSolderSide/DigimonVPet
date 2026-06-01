@@ -20,6 +20,8 @@
 #include "VPetLCD/Screens/DigimonWatchingScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/EatingAnimationScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/SleepingAnimationScreen.h"
+#include "VPetLCD/Screens/TrainingScreen.h"
+#include "VPetLCD/Screens/AnimationScreens/TrainingAnimationScreen.h"
 
 
 #include "GameLogic/ScreenStateMachine.h"
@@ -50,7 +52,7 @@ SaveGameHandler savegame;
 Button2 btn1(BUTTON_1);
 Button2 btn2(BUTTON_2);
 
-int hours = 18;
+int hours = 12;
 int minutes = 50;
 int seconds = 0;
 
@@ -90,9 +92,12 @@ V20::SelectionScreen lightSelection(true);
 V20::SleepingAnimationScreen sleepingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 V20::ClockScreen clockScreen(false);
 V20::EatingAnimationScreen eatingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
+V20::TrainingScreen trainingSelection;
+TrainingAnimationScreen trainingAnimationDefend(&spriteManager, digimon.getDigimonIndex(), &digimon);
+TrainingAnimationScreen trainingAnimationAttack(&spriteManager, digimon.getDigimonIndex(), &digimon, 1);
 
-//14 screens and 3 signals (one for each button)
-uint8_t numberOfScreens = 15;
+//17 screens and 3 signals (one for each button)
+uint8_t numberOfScreens = 18;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -118,6 +123,9 @@ uint8_t lightSelectionId = stateMachine.addScreen(&lightSelection);
 uint8_t clockScreenId = stateMachine.addScreen(&clockScreen);
 uint8_t eatingAnimationScreenId = stateMachine.addScreen(&eatingAnimationScreen);
 uint8_t sleepingAnimationScreenId = stateMachine.addScreen(&sleepingAnimationScreen);
+uint8_t trainingSelectionId = stateMachine.addScreen(&trainingSelection);
+uint8_t trainingAnimationDefendId = stateMachine.addScreen(&trainingAnimationDefend);
+uint8_t trainingAnimationAttackId = stateMachine.addScreen(&trainingAnimationAttack);
 
 uint8_t poop=0;
 // flag to indicate lightSelection was opened from sleeping screen
@@ -206,7 +214,11 @@ void stateMachineInit() {
       stateMachine.setCurrentScreen(foodSelectionId);
       break;
     case 2: //train (this is not set up yet as no training logic)
-
+      if (digimon.getState() == STATE_EGG) {
+        break;
+      }
+      trainingSelection.setSelection(0);
+      stateMachine.setCurrentScreen(trainingSelectionId);
       break;
     case 3: //fight (this is not set up yet as no fight logic)
       if (digimon.getState() == STATE_EGG){
@@ -260,6 +272,56 @@ void stateMachineInit() {
       break;
     }
     });
+
+  // Training selection transitions
+  stateMachine.addTransition(trainingSelectionId, trainingSelectionId, nextSignal);
+  stateMachine.addTransitionAction(trainingSelectionId, nextSignal, []() {
+    trainingSelection.nextSelection();
+  });
+
+  stateMachine.addTransition(trainingSelectionId, trainingSelectionId, confirmSignal);
+  stateMachine.addTransitionAction(trainingSelectionId, confirmSignal, []() {
+    uint8_t selection = trainingSelection.getSelection();
+    switch (selection) {
+    case 0: // Attack
+      trainingAnimationAttack.startGame();
+      stateMachine.setCurrentScreen(trainingAnimationAttackId);
+      break;
+    case 1: // Defence
+      trainingAnimationDefend.startGame();
+      stateMachine.setCurrentScreen(trainingAnimationDefendId);
+      break;
+    }
+  });
+
+  // (removed direct confirm->return transitions here; animations use endCallback)
+
+  // Training animation input handling: map next/confirm to top/bottom choices
+  stateMachine.addTransition(trainingAnimationDefendId, trainingAnimationDefendId, nextSignal);
+  stateMachine.addTransitionAction(trainingAnimationDefendId, nextSignal, []() {
+    trainingAnimationDefend.chooseShieldTop();
+  });
+  stateMachine.addTransition(trainingAnimationDefendId, trainingAnimationDefendId, confirmSignal);
+  stateMachine.addTransitionAction(trainingAnimationDefendId, confirmSignal, []() {
+    trainingAnimationDefend.chooseShieldBottom();
+  });
+
+  stateMachine.addTransition(trainingAnimationAttackId, trainingAnimationAttackId, nextSignal);
+  stateMachine.addTransitionAction(trainingAnimationAttackId, nextSignal, []() {
+    trainingAnimationAttack.chooseShieldTop();
+  });
+  stateMachine.addTransition(trainingAnimationAttackId, trainingAnimationAttackId, confirmSignal);
+  stateMachine.addTransitionAction(trainingAnimationAttackId, confirmSignal, []() {
+    trainingAnimationAttack.chooseShieldBottom();
+  });
+
+  // return to trainingSelection automatically when animation ends
+  trainingAnimationDefend.setEndCallback([](){
+    stateMachine.setCurrentScreen(trainingSelectionId);
+  });
+  trainingAnimationAttack.setEndCallback([](){
+    stateMachine.setCurrentScreen(trainingSelectionId);
+  });
 
   // Light on/off selection transitions
   stateMachine.addTransition(lightSelectionId, lightSelectionId, nextSignal);
@@ -436,6 +498,9 @@ void button_init()
     else if(cur == &digimonScreen) Serial.println("Current screen: digimonScreen");
     else if(cur == &sleepingAnimationScreen) Serial.println("Current screen: sleepingAnimationScreen");
     else if(cur == &eatingAnimationScreen) Serial.println("Current screen: eatingAnimationScreen");
+    else if(cur == &trainingSelection) Serial.println("Current screen: trainingSelection");
+    else if(cur == &trainingAnimationDefend) Serial.println("Current screen: trainingAnimationDefend");
+    else if(cur == &trainingAnimationAttack) Serial.println("Current screen: trainingAnimationAttack");
     else Serial.println("Current screen: unknown");
     buttonPressed = true;
     });
@@ -471,6 +536,9 @@ void setupScreens()
   clockScreen.setPos(screensOffsetX, 0);
   eatingAnimationScreen.setPos(screensOffsetX, 0);
   sleepingAnimationScreen.setPos(screensOffsetX, 0);
+  trainingSelection.setPos(screensOffsetX, 0);
+  trainingAnimationDefend.setPos(screensOffsetX, 0);
+  trainingAnimationAttack.setPos(screensOffsetX, 0);
   
   //adding the food selection options
   foodSelection.addOption("Meat", SYMBOL_MEAT);
@@ -578,6 +646,10 @@ void loop()
   //switch to next frame only when the screen is active
   if (stateMachine.getCurrentScreen() == &eatingAnimationScreen)
     eatingAnimationScreen.loop(lastDelta);
+  if (stateMachine.getCurrentScreen() == &trainingAnimationDefend)
+    trainingAnimationDefend.loop(lastDelta);
+  if (stateMachine.getCurrentScreen() == &trainingAnimationAttack)
+    trainingAnimationAttack.loop(lastDelta);
   
   screen.renderScreen(stateMachine.getCurrentScreen());
   
@@ -595,6 +667,9 @@ void loop()
     int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
     int minutesSinceSleep = (currentMins - sleepMins + 24*60) % (24*60);
 
+    Serial.println("Minutes until sleep: " + String(minutesUntilSleep));
+    Serial.println("Minutes since sleep: " + String(minutesSinceSleep));
+
     if(minutesUntilSleep <= 30 || (minutesSinceSleep > 0)){
       digimon.setState(STATE_TIRED);
     } else {
@@ -608,6 +683,8 @@ void loop()
     // (they were constructed with the old index and need to be updated)
     eatingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
     sleepingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    trainingAnimationDefend.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    trainingAnimationAttack.setDigimonSpriteIndex(digimon.getDigimonIndex());
     digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
   }
 
