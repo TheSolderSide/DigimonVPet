@@ -2,24 +2,25 @@
 #include <Arduino.h>
 
 #define N_EVOLUTIONS 1 //the maximal evolution options per digimon
-#define N_DIGIMON 3
-#define DIGIMON_AGUMON 0
-#define DIGIMON_KOROMON 1
-#define DIGIMON_BOTAMON 2
+#define N_DIGIMON 4
+#define DIGIMON_EGG 0
+#define DIGIMON_BOTAMON 1
+#define DIGIMON_KOROMON 2
+#define DIGIMON_AGUMON 3
 
 #define TYPE_VACCINE 0
 #define TYPE_DATA 1
 #define TYPE_VIRUS 2
 #define TYPE_FREE 3
 
-
-#define STAGE_BABY1 0
-#define STAGE_BABY2 1
-#define STAGE_ROOKIE 2
-#define STAGE_ADULT 3
-#define STAGE_PERFECT 4
-#define STAGE_ULTIMATE 5
-#define STAGE_SUPER_ULTIMATE 6
+#define STAGE_EGG 0
+#define STAGE_BABY1 1
+#define STAGE_BABY2 2
+#define STAGE_ROOKIE 3
+#define STAGE_ADULT 4
+#define STAGE_PERFECT 5
+#define STAGE_ULTIMATE 6
+#define STAGE_SUPER_ULTIMATE 7
 
 #define POOP_FREQUENCY_BABY1 60*3 //3 minutes
 #define POOP_FREQUENCY_BABY2 60*30 //30 minutes
@@ -28,11 +29,20 @@
 #define POOP_FREQUENCY_PERFECT 60*80
 #define POOP_FREQUENCY_ULTIMATE 60*100
 
+#define EVOLUTION_TIME_EGG 60*1 //egg takes 1 minute to hatch
 #define EVOLUTION_TIME_BABY1 60*10 //Baby1->Baby2 takes 10 minutes
 #define EVOLUTION_TIME_BABY2 60*60*6 // Baby2->rookie takes 6 hours
 #define EVOLUTION_TIME_ROOKIE 60*60*24 // Rookie->adult takes 24 hours
 #define EVOLUTION_TIME_ADULT 60*60*36 
 #define EVOLUTION_TIME_PERFECT 60*60*48
+
+#define STATE_EGG 0
+#define STATE_AWAKE 1
+#define STATE_ASLEEP 2
+#define STATE_SICK 3
+#define STATE_INJURED 4
+#define STATE_BATTLING 5
+#define STATE_DEAD 6
 
 struct DigimonProperties {
     char* digiName; //Name of the Digimon
@@ -45,6 +55,7 @@ struct DigimonProperties {
     uint8_t wakeUpHour;//at what time the digimon wakes up(0-23)
     unsigned long poopTimeSec; //the time it takes to poop in seconds
     unsigned long evolutionTimeSec; //time it takes to evolve in seconds
+    unsigned long feedTimeSec; //time it takes for hunger to increase by 1 in seconds
     uint8_t type; // Va Da Vi
     uint8_t og_slot; // slot for battles in og mode
     uint16_t evolutionOptions; // how many possible evolutions there are in the evolution data array in progmem
@@ -75,24 +86,20 @@ struct NormalEvolutionData {
 
 
 const DigimonProperties DIGIMON_DATA[N_DIGIMON] PROGMEM = {
-    {"Agumon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,TYPE_DATA,0x03,0},
-    {"Koromon",STAGE_BABY2,10,16,0 ,19,8,POOP_FREQUENCY_BABY2,EVOLUTION_TIME_BABY2,TYPE_DATA,0x03,1},
+    {"Egg",STAGE_EGG,0,0,0,0,0,POOP_FREQUENCY_ULTIMATE,EVOLUTION_TIME_EGG ,TYPE_DATA,0x03,1},
     {"Botamon",STAGE_BABY1,5 ,4 ,0 ,19,8,POOP_FREQUENCY_BABY1,EVOLUTION_TIME_BABY1 ,TYPE_DATA,0x03,1},
-
+    {"Koromon",STAGE_BABY2,10,16,0 ,19,8,POOP_FREQUENCY_BABY2,EVOLUTION_TIME_BABY2,TYPE_DATA,0x03,1},
+    {"Agumon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,TYPE_DATA,0x03,0}
 };
 
 const NormalEvolutionData NORMALEVOLUTIONDATA[N_DIGIMON][N_EVOLUTIONS] PROGMEM = {
-    //Agumons Digitations
-    {NULL},
-
-    //Koromons Digitations
-    {{DIGIMON_AGUMON, true,0,2,false,0,0,false,0,0,false,0,0,false,0}},
-
     //Botamons Digitations
     {{DIGIMON_KOROMON, false,0,0,false,0,0,false,0,0,false,0,0,false,0}},
+    //Koromons Digitations
+    {{DIGIMON_AGUMON, true,0,2,false,0,0,false,0,0,false,0,0,false,0}},
+    //Agumons Digitations
+    {NULL},
 };
-
-
 
 class Digimon{
 
@@ -106,14 +113,14 @@ class Digimon{
         boolean evolved=false;
 
         //variables to save
-        uint8_t state=0; //alive, sleep, dying, egg_state, super_dead, question_egg, dead, inbed/actually sleep
+        uint8_t state=0; 
         uint16_t age=0;
         uint16_t weight=0;
         uint16_t feedCounter;
         uint16_t careMistakes;
         uint16_t trainingCounter;
         uint8_t numberOfPoops;
-        uint8_t hunger=10;
+        uint8_t hunger=0;
         uint8_t strength;
         uint8_t effort;
         uint8_t digimonPower; //dp
@@ -132,6 +139,7 @@ class Digimon{
         unsigned long poopTimer;
         unsigned long ageTimer;
         unsigned long evolutionTimer;
+        unsigned long feedTimer;
 
         void updateTimers(unsigned long delta);
 
@@ -145,7 +153,7 @@ class Digimon{
         //setters
         void setProperties(const DigimonProperties* _properties){properties=_properties;};
         void setDigimonIndex(uint16_t _digimonIndex){digimonIndex=_digimonIndex;};
-        void setState(uint8_t _state){state=_state;}; //alive, sleep, dying, egg_state, super_dead, question_egg, dead, inbed/actually sleep
+        void setState(uint8_t _state){state=_state;}; 
         void setAge(uint16_t _age){age=_age;};
         void setWeight(uint16_t _weight){weight=_weight;};
         void setFeedCounter( uint16_t _feedCounter){feedCounter=_feedCounter;};
@@ -154,7 +162,7 @@ class Digimon{
         void setPoopTimer(unsigned long _poopTimer){poopTimer=_poopTimer;};
         void setAgeTimer(unsigned long _ageTimer){ageTimer=_ageTimer;};
         void setEvolutionTimer(unsigned long _evolutionTimer){evolutionTimer=_evolutionTimer;};
-
+        void setEvolved(boolean _evolved){evolved=_evolved;};
         void setNumberOfPoops(uint8_t _numberOfPoops){numberOfPoops=_numberOfPoops;};
         void setHunger(uint8_t _hunger){hunger=_hunger;};
         void setStrength(uint8_t _strength){strength=_strength;};
@@ -165,7 +173,7 @@ class Digimon{
         
         uint16_t getDigimonIndex(){return digimonIndex;};
         const DigimonProperties* getProperties(){return properties;};
-        uint8_t getState(){return state;}; //alive, sleep, dying, egg_state, super_dead, question_egg, dead, inbed/actually sleep
+        uint8_t getState(){return state;}; 
         uint16_t getAge(){return age;};
         uint16_t getWeight(){return weight;};
         uint16_t getFeedCounter(){return feedCounter;};
@@ -174,16 +182,20 @@ class Digimon{
         unsigned long getPoopTimer(){return poopTimer;};
         unsigned long getAgeTimer(){return ageTimer;};
         unsigned long getEvolutionTimer(){return evolutionTimer;};
+        unsigned long getFeedTimer(){return feedTimer;};
         uint8_t getNumberOfPoops(){return numberOfPoops;};
         uint8_t getHunger(){return hunger;};
         uint8_t getStrength(){return strength;};
         uint8_t getEffort(){return effort;};
         uint8_t getDigimonPower(){return digimonPower;};
-     
+        uint8_t getHungerHearts(){return std::round(4.0 * getHunger() / 10.0);};
+        uint8_t getStrengthHearts(){return std::round(4.0 * getStrength() / 10.0);};
+        uint8_t getEffortHearts(){return std::round(4.0 * getEffort() / 10.0);};
 
 
         void printSerial();
         void reduceHunger(int8_t amount){hunger-=amount;};
+        void increaseHunger(int8_t amount){hunger+=amount;};
         void addWeight(int8_t w){weight+=w;};
         void loseWeight(int8_t w){weight-=w;};
         void addStrength(int8_t s){strength+=s;};

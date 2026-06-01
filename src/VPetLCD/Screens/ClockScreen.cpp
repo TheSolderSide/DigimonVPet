@@ -41,7 +41,6 @@ void V20::ClockScreen::incrementSeconds() {
 
 void V20::ClockScreen::draw(VPetLCD* lcd) {
   boolean isAM = hours < 12;
-
   if (showAMPM) {
 
     if (hours >= 13) {
@@ -54,10 +53,9 @@ void V20::ClockScreen::draw(VPetLCD* lcd) {
     if (isAM) {
       lcd->drawSymbol(SYMBOL_AM, screenX, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT + 2, false, pixelColor);
     }    
-else {
+    else {
       lcd->drawSymbol(SYMBOL_PM, screenX, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT + 2, false, pixelColor);
     }
-
   }
 
   lcd->drawZeroPaddedIntegerOnLCD(hours, screenX, screenY, pixelColor);

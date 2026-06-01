@@ -30,7 +30,7 @@ namespace V20 {
     DigimonNameScreen(AbstractSpriteManager* _spriteManager, char _digimonName[], uint16_t _digimonSpriteIndex, uint16_t _scrollBoxWidth);
     void draw(VPetLCD* lcd);
     void setDigimonSpriteIndex(uint16_t _digimonSpriteIndex) { digimonSpriteIndex = _digimonSpriteIndex; };
-
+    void setDigimonName(char _digimonName[]){digimonName=_digimonName; calculateTextWidth(nullptr);};
 
   };
 }

@@ -32,6 +32,7 @@ void V20::HeartsScreen::draw(VPetLCD *lcd) {
   
   lcd->drawCharArrayOnLCD(text, screenX, 0, pixelColor);
   for (int i = 0; i < hearts; i++) {
+    if(i >= maxHearts) break; // in case of invalid input
     lcd->drawSymbol( SYMBOL_HEART, screenX + i * SPRITES_SYMBOL_RESOLUTION, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT, false, pixelColor);
   }
 

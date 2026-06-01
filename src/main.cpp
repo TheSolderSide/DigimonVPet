@@ -7,6 +7,7 @@
 */
 /////////////////////////////////////////////////////////////////
 
+#include <cmath>
 #include "VPetLCD/VPetLCD.h"
 #include "VPetLCD/VPetLCDMenuBar32p.h"
 #include "VPetLCD/Screens/AgeWeightScreen.h"
@@ -18,6 +19,7 @@
 #include "VPetLCD/Screens/ClockScreen.h"
 #include "VPetLCD/Screens/DigimonWatchingScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/EatingAnimationScreen.h"
+#include "VPetLCD/Screens/AnimationScreens/SleepingAnimationScreen.h"
 
 
 #include "GameLogic/ScreenStateMachine.h"
@@ -25,7 +27,7 @@
 #include "GameLogic/Digimon.h"
 
 
-uint16_t digiIndex =DIGIMON_BOTAMON;
+uint16_t digiIndex =DIGIMON_EGG;
 Digimon digimon(digiIndex);
 
 //ESP32 Specific stuff
@@ -46,7 +48,7 @@ Digimon digimon(digiIndex);
 Button2 btn1(BUTTON_1);
 Button2 btn2(BUTTON_2);
 
-int hours = 23;
+int hours = 22;
 int minutes = 59;
 int seconds = 0;
 
@@ -71,22 +73,23 @@ ESP32DigimonDataLoader dataLoader;
 VPetLCD screen(&displayAdapter, &spriteManager, 40, 16);
 VPetLCDMenuBar32p menuBar(7,5,displayHeight);
 
-V20::DigimonWatchingScreen digimonScreen(&spriteManager, digimon.getDigimonIndex(), -8, 40, 0, 0);
+V20::DigimonWatchingScreen digimonScreen(&spriteManager, &digimon, -8, 40, 0, 0);
 V20::DigimonNameScreen digiNameScreen(&spriteManager, dataLoader.getDigimonProperties(digiIndex)->digiName, digimon.getDigimonIndex(), 24);
 V20::AgeWeightScreen ageWeightScreen(5, 21);
-V20::HeartsScreen hungryScreen("Hungry", 2, 4);
-V20::HeartsScreen strengthScreen("Strength", 3, 4);
-V20::HeartsScreen effortScreen("Effort", 4, 4);
-V20::ProgressBarScreen dpScreen("DP", 29, 40);
+V20::HeartsScreen hungryScreen("Hungry", digimon.getHungerHearts(), 4);
+V20::HeartsScreen strengthScreen("Str", digimon.getStrengthHearts(), 4);
+V20::HeartsScreen effortScreen("Effort", digimon.getEffortHearts(), 4);
+V20::ProgressBarScreen dpScreen("DP", 30, digimon.getDigimonPower());
 V20::PercentageScreen sPercentageScreen("WIN", 'S', 100);
 V20::PercentageScreen tPercentageScreen("WIN", 'T', 93);
 V20::SelectionScreen foodSelection(true);
 V20::SelectionScreen fightSelection(true);
-V20::ClockScreen clockScreen(true);
+V20::SleepingAnimationScreen sleepingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
+V20::ClockScreen clockScreen(false);
 V20::EatingAnimationScreen eatingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 
 //13 screens and 3 signals (one for each button)
-uint8_t numberOfScreens = 13;
+uint8_t numberOfScreens = 14;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -110,6 +113,7 @@ uint8_t foodSelectionId = stateMachine.addScreen(&foodSelection);
 uint8_t fightSelectionId = stateMachine.addScreen(&fightSelection);
 uint8_t clockScreenId = stateMachine.addScreen(&clockScreen);
 uint8_t eatingAnimationScreenId = stateMachine.addScreen(&eatingAnimationScreen);
+uint8_t sleepingAnimationScreenId = stateMachine.addScreen(&sleepingAnimationScreen);
 
 uint8_t poop=0;
 
@@ -121,8 +125,7 @@ void stateMachineInit() {
   //return to food selection screen after showing eating animation
   eatingAnimationScreen.setAnimationEndAction([]() {
     stateMachine.setCurrentScreen(foodSelectionId);
-
-    });
+  });
 
   // in order to be able to go back to the digimon watching screen
   // we will add a transition from every screen to the digimon watching screen
@@ -140,6 +143,7 @@ void stateMachineInit() {
   stateMachine.addTransition(dpScreenId, sPercentageScreenId, nextSignal);
   stateMachine.addTransition(sPercentageScreenId, tPercentageScreenId, nextSignal);
   stateMachine.addTransition(tPercentageScreenId, digiNameScreenId, nextSignal);
+  stateMachine.addTransition(sleepingAnimationScreenId, digiNameScreenId, nextSignal);
 
   //Transitions between clock screen and digimon watching screen
   stateMachine.addTransition(digimonScreenId, clockScreenId, backSignal);
@@ -153,53 +157,58 @@ void stateMachineInit() {
   //incremented and the selection will be set
   stateMachine.addTransitionAction(digimonScreenId, nextSignal, []() {
       menuBar.nextSelection();
-    });
+  });
 
   //Here are the conditional transitions handled.
   stateMachine.addTransition(digimonScreenId, digimonScreenId, confirmSignal);
   stateMachine.addTransitionAction(digimonScreenId, confirmSignal, []() {
-    uint8_t maxdp = digimon.getProperties()->maxDigimonPower;
+    //uint8_t maxdp = digimon.getProperties()->maxDigimonPower;
     switch (menuBar.getSelection()) {
-    case 0:
+    case 0: // stats screen
       digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
-      hungryScreen.setHearts(4-4*digimon.getHunger()/10);
-      
-      if(maxdp >0){
-        dpScreen.setFillPercentage((digimon.getDigimonPower()*100)/maxdp);
-      }else{
-        dpScreen.setFillPercentage(0);
-      }
+      digiNameScreen.setDigimonName(digimon.getProperties()->digiName);
+      hungryScreen.setHearts(digimon.getHungerHearts());
+      strengthScreen.setHearts(digimon.getStrengthHearts());
+      effortScreen.setHearts(digimon.getEffortHearts());
+
+      dpScreen.setFillPercentage((digimon.getDigimonPower()));
+      // if(maxdp > 0){
+      // }else{
+      //   dpScreen.setFillPercentage(0);
+      // }
       ageWeightScreen.setAge(digimon.getAge());
       ageWeightScreen.setWeight(digimon.getWeight());
       stateMachine.setCurrentScreen(digiNameScreenId);
       break;
-    case 1:
+    case 1: // feed
       foodSelection.setSelection(0);
       stateMachine.setCurrentScreen(foodSelectionId);
       break;
-    case 3:
+    case 2: //train (this is not set up yet as no training logic)
+
+      break;
+    case 3: //fight (this is not set up yet as no fight logic)
       fightSelection.setSelection(0);
       stateMachine.setCurrentScreen(fightSelectionId);
       break;
-
-    case 4:
-      
+    case 4: // clean poop   
+      Serial.println("Clean Poop button pressed");
       digimonScreen.flushPoop();
       digimon.setNumberOfPoops(0);
       break;
-
-    case 2:
-
+    case 5: //sleep
+    stateMachine.setCurrentScreen(sleepingAnimationScreenId);
+    break;
+    case 6: //cure
       break;
     }
     });
 
-
-  //adding functionality of buttons in food screen:
+  //adding functionality of buttons in food  type screen:
   stateMachine.addTransition(foodSelectionId, foodSelectionId, nextSignal);
   stateMachine.addTransitionAction(foodSelectionId, nextSignal, []() {
     foodSelection.nextSelection();
-    });
+  });
 
   //adding functionality of buttons in food screen:
   stateMachine.addTransition(foodSelectionId, foodSelectionId, confirmSignal);
@@ -208,7 +217,7 @@ void stateMachineInit() {
     switch (selection) {
     case 0:
       digimon.addWeight(1);
-      digimon.reduceHunger(1);
+      digimon.increaseHunger(1);
       eatingAnimationScreen.setSprites(SYMBOL_MEAT, SYMBOL_HALF_MEAT,SYMBOL_EMPTY_MEAT);
       eatingAnimationScreen.startAnimation();
       stateMachine.setCurrentScreen(eatingAnimationScreenId);
@@ -221,18 +230,6 @@ void stateMachineInit() {
       eatingAnimationScreen.startAnimation();
       stateMachine.setCurrentScreen(eatingAnimationScreenId);
       break;
-
-    case 2:
-      eatingAnimationScreen.setSprites(SYMBOL_HEART, SYMBOL_HEARTEMPTY,SYMBOL_EMPTY);
-      eatingAnimationScreen.startAnimation();
-      stateMachine.setCurrentScreen(eatingAnimationScreenId);
-      break;
-    case 3:
-      eatingAnimationScreen.setSprites(SYMBOL_POOP,SYMBOL_HALF_PILL,SYMBOL_EMPTY);
-      eatingAnimationScreen.startAnimation();
-      stateMachine.setCurrentScreen(eatingAnimationScreenId);
-      break;
-
     }
     });
 
@@ -247,13 +244,29 @@ void stateMachineInit() {
   stateMachine.addTransition(fightSelectionId, fightSelectionId, nextSignal);
   stateMachine.addTransitionAction(fightSelectionId, nextSignal, []() {
     fightSelection.nextSelection();
+  });
 
-    });
-
-
+  //sleep functionality
+  stateMachine.addTransition(sleepingAnimationScreenId, sleepingAnimationScreenId, confirmSignal);
+  stateMachine.addTransitionAction(sleepingAnimationScreenId, confirmSignal, []() {
+  Serial.println("Sleep button pressed");
+    Serial.println("Sleep button pressed");
+    switch(digimon.getState()){
+    case 0: //if not already sleeping
+      Serial.println("going to Sleep");
+      //digimon.setState(11); //set state to sleeping
+      sleepingAnimationScreen.startAnimation();
+      stateMachine.setCurrentScreen(sleepingAnimationScreenId);
+      break;
+    case 11:
+      Serial.println("waking up");
+      //digimon.setState(0); //set state to awake
+      stateMachine.setCurrentScreen(digimonScreenId);
+      break;
+    }
+  }); 
 
 }
-
 
 void button_init()
 {
@@ -302,20 +315,18 @@ void setupScreens()
   tPercentageScreen.setPos(screensOffsetX, 0);
   clockScreen.setPos(screensOffsetX, 0);
   eatingAnimationScreen.setPos(screensOffsetX, 0);
+  sleepingAnimationScreen.setPos(screensOffsetX, 0);
   
-
-
   //adding the food selection options
   foodSelection.addOption("Meat", SYMBOL_MEAT);
   foodSelection.addOption("PILL", SYMBOL_PILL);
-  foodSelection.addOption("LOVE", SYMBOL_HEART);
-  foodSelection.addOption("SHIT", SYMBOL_POOP);
 
   //adding the battle options
   fightSelection.setShowIcons(false);
   fightSelection.addOption("SINGLE");
   fightSelection.addOption("TAG");
 
+  //clockScreen
   clockScreen.setHours(hours);
   clockScreen.setMinutes(minutes);
   clockScreen.setSeconds(seconds);
@@ -331,6 +342,10 @@ void setup(void)
   digitalWrite(ADC_EN, HIGH);
 
   randomSeed(analogRead(1));
+  
+  hungryScreen.setMaxHearts(4);
+  Serial.println(digimon.getState());
+
   /*
   digimon.setDigimonIndex(10);
     digimon.setState(20);
@@ -387,9 +402,7 @@ void loop()
   //tft.fillScreen(0x86CE);
   unsigned long t1 = millis();
 
-
   digimon.loop(lastDelta);
-  digimonScreen.setNumberOfPoop(digimon.getNumberOfPoops());
 
 
   //updating the screens which need the loop
@@ -397,13 +410,21 @@ void loop()
   clockScreen.loop(lastDelta);
   digiNameScreen.loop(lastDelta);
 
-
   //switch to next frame only when the screen is active
   if (stateMachine.getCurrentScreen() == &eatingAnimationScreen)
     eatingAnimationScreen.loop(lastDelta);
   
   screen.renderScreen(stateMachine.getCurrentScreen());
   
+  if (digimon.isEvolved()){
+    digimon.setEvolved(false);
+    digimonScreen.evolveDigimon();
+    digimon.setProperties(dataLoader.getDigimonProperties(digimon.getDigimonIndex()));
+    Serial.println("Evolved to: "+String(digimon.getProperties()->digiName));
+    if(digimon.getState() == 0){
+      digimon.setState(1);
+    }
+  }
 
   buttonPressed = false;
 
@@ -424,11 +445,7 @@ void loop()
   lastDelta = t2 - t1;
 }
 
-
-
-
 //measure the HeapFragmentation
 float getFragmentation() {
-  
   return 100 - heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) * 100.0 / heap_caps_get_free_size(MALLOC_CAP_8BIT);
 }

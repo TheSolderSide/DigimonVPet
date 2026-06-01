@@ -20,6 +20,7 @@
 #define ADDRESS_AGETIMER 21//4byte
 #define ADDRESS_EVOLUTIONETIMER 25 //4byte
 #define ADDRESS_DIGIMONPOWER 26 //1byte
+#define FEED_TIMER 27 //4byte
 
 class SaveGameHandler{
 

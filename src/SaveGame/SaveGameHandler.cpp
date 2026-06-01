@@ -35,5 +35,6 @@ void SaveGameHandler::saveDigimon(Digimon* digimon) {
     EEPROM.put(ADDRESS_STRENGTH,digimon->getStrength());
     EEPROM.put(ADDRESS_EFFORT,digimon->getEffort());
     EEPROM.put(ADDRESS_DIGIMONPOWER,digimon->getDigimonPower());
+    EEPROM.put(FEED_TIMER,digimon->getFeedTimer());
     EEPROM.commit();
 }

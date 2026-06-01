@@ -1,9 +1,8 @@
 #include "Digimon.h"
 
 void Digimon::printSerial(){
-
   Serial.println(getDigimonIndex());
-  Serial.println(getState());
+  Serial.println(getState());   
   Serial.println(getAge());
   Serial.println(getWeight());
   Serial.println(getFeedCounter());
@@ -14,12 +13,9 @@ void Digimon::printSerial(){
   Serial.println(getEvolutionTimer());
 }
 
-
 void Digimon::loop(unsigned long delta){
-
     updateTimers(delta);
 }
-
 
 void Digimon::updateTimers(unsigned long delta){
     poopTimer += delta;
@@ -38,8 +34,27 @@ void Digimon::updateTimers(unsigned long delta){
 
     evolutionTimer += delta;
     if(evolutionTimer >= properties->evolutionTimeSec*1000){
-        evolutionTimer =0;
+        Serial.println("evolving");
         evolved = true;
+        setEvolutionTimer(0);
     }
 
+    feedTimer += delta;
+    if(feedTimer >= properties->feedTimeSec*1000*60*10){ //every 10 minutes, hunger increases by 1
+        feedTimer =0;
+        uint8_t hunger = getHunger();
+
+        if(hunger < 0){
+            reduceHunger(1);
+        }
+
+        if(hunger < 2){
+            //send a warning some how
+        }
+
+        //if hunger at min and still not fed increase care mistakes
+        if(hunger == 0){           
+            careMistakes++;
+        }
+    }
 }
