@@ -349,6 +349,7 @@ void stateMachineInit() {
           // normal flow: turn lights on and restore display; set TIRED if not asleep
           digimon.setForcedAsleep(false);
           if(digimon.getState() != STATE_ASLEEP){
+            Serial.println("hitting tired state from light selection number 1");
             digimon.setState(STATE_TIRED);
           }
           screen.setForceBlackScreen(false);
@@ -382,6 +383,7 @@ void stateMachineInit() {
           } else {
             // don't force asleep outside sleeping hours; mark as tired if awake
             if (digimon.getState() == STATE_AWAKE) {
+              Serial.println("hitting tired state from light selection number 2");
               digimon.setState(STATE_TIRED);
             }
             stateMachine.setCurrentScreen(digimonScreenId);
@@ -665,12 +667,9 @@ void loop()
     int currentMins = hours * 60 + minutes;
     int sleepMins = newProps->sleepHour * 60;
     int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
-    int minutesSinceSleep = (currentMins - sleepMins + 24*60) % (24*60);
+    int minutesSinceSleep = digimon.getState() == STATE_EGG ? 0 : (currentMins - sleepMins + 24*60) % (24*60);
 
-    Serial.println("Minutes until sleep: " + String(minutesUntilSleep));
-    Serial.println("Minutes since sleep: " + String(minutesSinceSleep));
-
-    if(minutesUntilSleep <= 30 || (minutesSinceSleep > 0)){
+    if(minutesUntilSleep <= 30 || ((minutesSinceSleep > 0) && digimon.getState() != STATE_EGG)){
       digimon.setState(STATE_TIRED);
     } else {
       digimon.setState(STATE_AWAKE);
@@ -687,53 +686,55 @@ void loop()
     trainingAnimationAttack.setDigimonSpriteIndex(digimon.getDigimonIndex());
     digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
   }
+  else{   
+      // update internal clock and handle sleep/wake transitions once per second
+      clockAccMs += lastDelta;
+      while(clockAccMs >= 1000){
+        clockAccMs -= 1000;
+        seconds++;
+        if(seconds >= 60){ seconds = 0; minutes++; }
+        if(minutes >= 60){ minutes = 0; hours = (hours + 1) % 24; }
+        clockScreen.setHours(hours);
+        clockScreen.setMinutes(minutes);
+        clockScreen.setSeconds(seconds);
 
-  buttonPressed = false;
+        const DigimonProperties* props = digimon.getProperties();
+        if(props != NULL){
+        int currentMins = hours * 60 + minutes;
+        int sleepMins = props->sleepHour * 60;
+        int wakeMins = props->wakeUpHour * 60;
+        int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
+        int minutesSinceSleep = digimon.getState() == STATE_EGG ? 0 : (currentMins - sleepMins + 24*60) % (24*60);
 
-  // update internal clock and handle sleep/wake transitions once per second
-  clockAccMs += lastDelta;
-  while(clockAccMs >= 1000){
-    clockAccMs -= 1000;
-    seconds++;
-    if(seconds >= 60){ seconds = 0; minutes++; }
-    if(minutes >= 60){ minutes = 0; hours = (hours + 1) % 24; }
-    clockScreen.setHours(hours);
-    clockScreen.setMinutes(minutes);
-    clockScreen.setSeconds(seconds);
-
-    const DigimonProperties* props = digimon.getProperties();
-    if(props != NULL){
-      int currentMins = hours * 60 + minutes;
-      int sleepMins = props->sleepHour * 60;
-      int wakeMins = props->wakeUpHour * 60;
-      int minutesUntilSleep = (sleepMins - currentMins + 24*60) % (24*60);
-      int minutesSinceSleep = (currentMins - sleepMins + 24*60) % (24*60);
-
-      // skip sleep logic for egg state
-      if(digimon.getState() != STATE_EGG){
-        // 30 minutes before sleep -> TIRED (normal case)
-        if(minutesUntilSleep == 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
-          digimon.setState(STATE_TIRED);
-        }
-
-        // If current time is after sleep time but within 30 minutes, ensure the digimon is TIRED
-        if(minutesSinceSleep > 0 && minutesSinceSleep < 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
-          digimon.setState(STATE_TIRED);
-        }
-
-        // If 30 or more minutes have passed since sleep time:
-        // - if lights are OFF -> transition to ASLEEP
-        // - if lights are ON -> remain TIRED but count a care mistake (owner kept lights on)
-        if(minutesSinceSleep >= 30){
-          if(digimon.isLightsOn()){
-            // count care mistake once when lights are kept on past sleep
-            if(!digimon.isSleepCareMistakeLogged()){
-              digimon.setCareMistakes(digimon.getCareMistakes()+1);
-              digimon.setSleepCareMistakeLogged(true);
-            }
-            // stay TIRED (do not auto-sleep while lights are on)
+        // skip sleep logic for egg state
+        if(digimon.getState() != STATE_EGG)
+        {
+          // 30 minutes before sleep -> TIRED (normal case)
+          if(minutesUntilSleep == 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
             digimon.setState(STATE_TIRED);
-          } else {
+          }
+
+          // If current time is after sleep time but within 30 minutes, ensure the digimon is TIRED
+          if(minutesSinceSleep > 0 && minutesSinceSleep < 30 && digimon.getState() == STATE_AWAKE && !digimon.isForcedAsleep()){
+            digimon.setState(STATE_TIRED);
+          }
+
+          // If 30 or more minutes have passed since sleep time:
+          // - if lights are OFF -> transition to ASLEEP
+          // - if lights are ON -> remain TIRED but count a care mistake (owner kept lights on)
+          if(minutesSinceSleep >= 30 && minutesUntilSleep <=0)
+          {
+            if(digimon.isLightsOn() && lastEvolutionMs != 0 && (millis() - lastEvolutionMs) < 60000){
+              // count care mistake once when lights are kept on past sleep
+              if(!digimon.isSleepCareMistakeLogged()){
+                digimon.setCareMistakes(digimon.getCareMistakes()+1);
+                digimon.setSleepCareMistakeLogged(true);
+              }
+              // stay TIRED (do not auto-sleep while lights are on)
+              digimon.setState(STATE_TIRED);
+            } 
+            else 
+            {
               // lights are off -> allow sleeping, but don't auto-sleep immediately after evolution
               if(digimon.getState() != STATE_ASLEEP){
                 bool allowSleep = true;
@@ -752,23 +753,27 @@ void loop()
                 }
               }
             }
+          }
         }
-      }
 
-      // wake up at wakeUpHour
-      if(currentMins == wakeMins && digimon.getState() == STATE_ASLEEP){
-        digimon.setState(STATE_AWAKE);
-        digimon.setForcedAsleep(false);
-        // restore lights to ON when waking and clear night's logged flag
-        digimon.setLightsOn(true);
-        // restore display when waking
-        screen.setForceBlackScreen(false);
-        digimon.setSleepCareMistakeLogged(false);
-        savegame.saveDigimon(&digimon);
-        stateMachine.setCurrentScreen(digimonScreenId);
+        // wake up at wakeUpHour
+        if(currentMins == wakeMins && digimon.getState() == STATE_ASLEEP){
+          digimon.setState(STATE_AWAKE);
+          digimon.setForcedAsleep(false);
+          // restore lights to ON when waking and clear night's logged flag
+          digimon.setLightsOn(true);
+          // restore display when waking
+          screen.setForceBlackScreen(false);
+          digimon.setSleepCareMistakeLogged(false);
+          savegame.saveDigimon(&digimon);
+          stateMachine.setCurrentScreen(digimonScreenId);
+        }
       }
     }
   }
+
+  buttonPressed = false;
+
   
   if (debug == true)
   {
