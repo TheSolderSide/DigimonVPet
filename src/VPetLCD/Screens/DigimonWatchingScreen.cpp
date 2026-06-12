@@ -85,7 +85,7 @@ void V20::DigimonWatchingScreen::calculateWalking() {
     // while tired, use the tired sprite for display
     currentWalkSprite = SPRITE_DIGIMON_TIRED;
   } else {
-    if (!isEgg && randomDecision(probabilityChangeWalkingSprite) || currentWalkSprite == 2) {
+    if (randomDecision(probabilityChangeWalkingSprite) || currentWalkSprite == 2) {
       //first two sprites are the walking animations
       currentWalkSprite++;
       currentWalkSprite %= 2;

@@ -294,8 +294,6 @@ void stateMachineInit() {
     }
   });
 
-  // (removed direct confirm->return transitions here; animations use endCallback)
-
   // Training animation input handling: map next/confirm to top/bottom choices
   stateMachine.addTransition(trainingAnimationDefendId, trainingAnimationDefendId, nextSignal);
   stateMachine.addTransitionAction(trainingAnimationDefendId, nextSignal, []() {
@@ -333,15 +331,27 @@ void stateMachineInit() {
   stateMachine.addTransitionAction(lightSelectionId, confirmSignal, []() {
     uint8_t selection = lightSelection.getSelection();
     Serial.println(String("Light selection confirm pressed, sel=") + String(selection));
+
+    const DigimonProperties* props = digimon.getProperties();
+    int currentMins = hours * 60 + minutes;
+    int sleepMins = props->sleepHour * 60;
+    int wakeMins = props->wakeUpHour * 60;
+    bool inSleepWindow = false;
+    if (sleepMins <= wakeMins) {
+      inSleepWindow = (currentMins >= sleepMins && currentMins < wakeMins);
+    } else {
+      // overnight window (e.g., 22:00 -> 08:00)
+      inSleepWindow = (currentMins >= sleepMins || currentMins < wakeMins);
+    }
+
     switch(selection){
       case 0: // ON
         digimon.setLightsOn(true);
+        screen.setForceBlackScreen(false);
         // If we opened the light menu from sleep, keep the digimon asleep and
         // reveal the light menu so the user can see the confirmation state.
         if(lightSelectionOpenedFromSleep){
           Serial.println("Light ON selected from sleep — keep asleep, reveal menu");
-          // keep digimon asleep; just reveal the display so menu is visible
-          screen.setForceBlackScreen(false);
           savegame.saveDigimon(&digimon);
           // remain on the lightSelection screen so the user sees the result
           lightSelectionOpenedFromSleep = false;
@@ -350,41 +360,32 @@ void stateMachineInit() {
           digimon.setForcedAsleep(false);
           if(digimon.getState() != STATE_ASLEEP){
             Serial.println("hitting tired state from light selection number 1");
-            digimon.setState(STATE_TIRED);
-          }
+            if(inSleepWindow){
+              digimon.setState(STATE_TIRED);
+            } else {
+              digimon.setState(STATE_AWAKE);         
+            }
           screen.setForceBlackScreen(false);
           savegame.saveDigimon(&digimon);
           stateMachine.setCurrentScreen(digimonScreenId);
+         }
         }
         break;
       case 1: // OFF
         digimon.setLightsOn(false);
         digimon.setForcedAsleep(true);
+        screen.setForceBlackScreen(true);
         // only transition to ASLEEP if current time is within the digimon's sleep window
         {
-          const DigimonProperties* props = digimon.getProperties();
-          int currentMins = hours * 60 + minutes;
-          int sleepMins = props->sleepHour * 60;
-          int wakeMins = props->wakeUpHour * 60;
-          bool inSleepWindow = false;
-          if (sleepMins <= wakeMins) {
-            inSleepWindow = (currentMins >= sleepMins && currentMins < wakeMins);
-          } else {
-            // overnight window (e.g., 22:00 -> 08:00)
-            inSleepWindow = (currentMins >= sleepMins || currentMins < wakeMins);
-          }
-
           if (inSleepWindow) {
             digimon.setState(STATE_ASLEEP);
             sleepingAnimationScreen.startAnimation();
             stateMachine.setCurrentScreen(sleepingAnimationScreenId);
-            // now that we've moved to the sleeping animation, blacken the display
-            screen.setForceBlackScreen(true);
           } else {
             // don't force asleep outside sleeping hours; mark as tired if awake
             if (digimon.getState() == STATE_AWAKE) {
               Serial.println("hitting tired state from light selection number 2");
-              digimon.setState(STATE_TIRED);
+              digimon.setState(STATE_AWAKE);
             }
             stateMachine.setCurrentScreen(digimonScreenId);
           }

@@ -7,7 +7,7 @@
 // timing constants for training animation (ms)
 static const unsigned long TRAINING_ATTACK_DURATION = 700;
 static const unsigned long TRAINING_RESULT_HOLD = 600;
-static const unsigned long TRAINING_ATTACK_FRAME = 300; // how long digimon shows attack sprite
+static const unsigned long TRAINING_ATTACK_FRAME = 400; // how long digimon shows attack sprite
 // total flashing time after result (three hold periods by default)
 static const unsigned long TRAINING_FLASH_TOTAL = TRAINING_RESULT_HOLD * 3;
 static const unsigned long TRAINING_FLASH_PERIOD = 300;
@@ -146,10 +146,10 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
     // hints when waiting for player
     if(playerChoicePos == -1){
         if(mode == MODE_DEFEND){
-            lcd->drawCharArrayOnLCD((char*)"Top:Next", screenX + 18, screenY+1, pxColor);
+            lcd->drawCharArrayOnLCD((char*)"", screenX + 18, screenY+1, pxColor);
             lcd->drawCharArrayOnLCD((char*)"Bot:Confirm", screenX + 18, screenY+SPRITES_DIGIMON_RESOLUTION+1, pxColor);
         } else {
-            lcd->drawCharArrayOnLCD((char*)"Fire:Next", screenX + 18, screenY+1, pxColor);
+            lcd->drawCharArrayOnLCD((char*)"", screenX + 18, screenY+1, pxColor);
             lcd->drawCharArrayOnLCD((char*)"Aim:Confirm", screenX + 18, screenY+SPRITES_DIGIMON_RESOLUTION+1, pxColor);
         }
     }
