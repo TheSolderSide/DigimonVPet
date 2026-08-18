@@ -6,14 +6,13 @@
 
 #include "../VPetLCD.h"
 #include "../../GameLogic/Digimon.h"
+#include "../../GameLogic/EvolutionHandler.h"
 
 namespace V20{
-
-
-
   class DigimonWatchingScreen : public VPetLCD::Screen{
     private:
       AbstractSpriteManager* spriteManager;
+      EvolutionHandler* evolutionHandler;
       Digimon* digimon;
       int8_t digimonX;
       int8_t digimonY;
@@ -55,7 +54,7 @@ namespace V20{
       void drawSleeping(VPetLCD *lcd, boolean inBed);
 
     public:
-      DigimonWatchingScreen(AbstractSpriteManager* _spriteManager, Digimon* _digimon, int8_t _minX, int8_t _maxX,int8_t _minY, int8_t _maxY);
+      DigimonWatchingScreen(EvolutionHandler* _evolutionHandler, AbstractSpriteManager* _spriteManager, Digimon* _digimon, int8_t _minX, int8_t _maxX,int8_t _minY, int8_t _maxY);
       void draw(VPetLCD *lcd);
       void loop(long delta); 
       void setXLimitations(int8_t _minX, int8_t _maxX){minX = _minX; maxX = _maxX;};

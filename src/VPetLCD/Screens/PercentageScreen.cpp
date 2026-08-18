@@ -21,7 +21,6 @@ V20::PercentageScreen::PercentageScreen(const char _text[],char _bottomChar, uin
 
 void V20::PercentageScreen::draw(VPetLCD *lcd){
    
-
     int offset = 0;
 
     if (percentage < 10) {
@@ -36,6 +35,4 @@ void V20::PercentageScreen::draw(VPetLCD *lcd){
     lcd->drawSymbol( SYMBOL_PERCENT, screenX + 26, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT + 1, false, pixelColor);
 
     lcd->drawIntegerOnLCD(percentage, screenX + 16 + offset, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT + 1, pixelColor);
-
-
 }

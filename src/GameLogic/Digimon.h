@@ -2,11 +2,22 @@
 #include <Arduino.h>
 
 #define N_EVOLUTIONS 1 //the maximal evolution options per digimon
-#define N_DIGIMON 4
+#define N_DIGIMON 15 //the number of digimon in the game
 #define DIGIMON_EGG 0
 #define DIGIMON_BOTAMON 1
 #define DIGIMON_KOROMON 2
 #define DIGIMON_AGUMON 3
+#define DIGIMON_BETAMON 4
+#define DIGIMON_GREYMON 5
+#define DIGIMON_TYRANOMON 6
+#define DIGIMON_DEVIMON 7
+#define DIGIMON_MERAMON 8
+#define DIGIMON_AIRDRAMON 9
+#define DIGIMON_SEADRAMON 10
+#define DIGIMON_NUMEMON 11
+#define DIGIMON_METALGREYMON 12
+#define DIGIMON_MAMEMON 13
+#define DIGIMON_MONZAEMON 14
 
 #define TYPE_VACCINE 0
 #define TYPE_DATA 1
@@ -62,45 +73,24 @@ struct DigimonProperties {
     uint16_t evolutionOptions; // how many possible evolutions there are in the evolution data array in progmem
 };
 
-
-struct NormalEvolutionData {
-    uint16_t indexOfDigimonAfterEvolution;
-    boolean careMistakes;
-    uint8_t mustHaveCareMistakes; //if the caremistakes are 3-5, 
-    uint8_t optionalCareMistakes; //then musthave is 3 and optional is 2
-
-    boolean careBattles;
-    uint8_t mustHaveBattles;
-    uint8_t optionalBattles;
-
-    boolean careOverFeed;
-    uint8_t mustHaveOverfeed;
-    uint8_t optionalOverfeed;
-
-    boolean careEfford;
-    uint8_t mustHaveEfford;
-    uint8_t optionalEfford;
-
-    boolean careBattledWith;
-    uint16_t battledWithDigimonId;
-};
-
-
 const DigimonProperties DIGIMON_DATA[N_DIGIMON] PROGMEM = {
     {"Egg",STAGE_EGG,0,0,0,0,0,POOP_FREQUENCY_ULTIMATE,EVOLUTION_TIME_EGG ,TYPE_DATA,0x03,1},
     {"Botamon",STAGE_BABY1,5 ,4 ,0 ,19,8,POOP_FREQUENCY_BABY1,EVOLUTION_TIME_BABY1 ,TYPE_DATA,0x03,1},
     {"Koromon",STAGE_BABY2,10,16,0 ,19,8,POOP_FREQUENCY_BABY2,EVOLUTION_TIME_BABY2,TYPE_DATA,0x03,1},
-    {"Agumon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,TYPE_DATA,0x03,0}
+    {"Agumon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,TYPE_DATA,0x03,0},
+    {"Betamon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,TYPE_VACCINE,0x03,0},
+    {"Greymon",STAGE_ADULT,30,28,30,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_DATA,0x03,0},
+    {"Tyrannomon",STAGE_ADULT,20,28,30,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_VIRUS,0x03,0},
+    {"Devimon",STAGE_ADULT,40,32,40,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_VIRUS,0x03,0},
+    {"Meramon",STAGE_ADULT,30,32,30,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_VACCINE,0x03,0},
+    {"AirDramon",STAGE_ADULT,30,24,30,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_DATA,0x03,0},
+    {"Seadramon",STAGE_ADULT,20,28,20,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_DATA,0x03,0},
+    {"Numemon",STAGE_ADULT,10,16,10,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,TYPE_DATA,0x03,0},
+    {"MetalGreymon",STAGE_PERFECT,40,36,40,19,8,POOP_FREQUENCY_PERFECT,EVOLUTION_TIME_PERFECT,TYPE_DATA,0x03,0},
+    {"Mamemon",STAGE_PERFECT,5,32,100,45,8,POOP_FREQUENCY_PERFECT,EVOLUTION_TIME_PERFECT,TYPE_VACCINE,0x03,0},
+    {"Monzaemon",STAGE_PERFECT,40,32,50,19,8,POOP_FREQUENCY_PERFECT,EVOLUTION_TIME_PERFECT,TYPE_VIRUS,0x03,0}
 };
 
-const NormalEvolutionData NORMALEVOLUTIONDATA[N_DIGIMON][N_EVOLUTIONS] PROGMEM = {
-    //Botamons Digitations
-    {{DIGIMON_KOROMON, false,0,0,false,0,0,false,0,0,false,0,0,false,0}},
-    //Koromons Digitations
-    {{DIGIMON_AGUMON, true,0,2,false,0,0,false,0,0,false,0,0,false,0}},
-    //Agumons Digitations
-    {NULL},
-};
 
 class Digimon{
 
@@ -125,16 +115,14 @@ class Digimon{
         uint8_t strength;
         uint8_t effort;
         uint8_t digimonPower; //dp
-
+        uint8_t overfeedCounter; 
+        uint8_t sleepDisturbancesCounter;
         uint8_t sicknessCounter;
-        boolean isSick;
-        uint8_t numberOfTrainingSessions;
+
         //uint16_t singleTotalBattleRecord
         //uint16_t tagTotalBattleRecord
         //uint16_t singleTotalBattleWins
         //uint16_t tagTotalBattleWins
-
-        
 
         //timers
         unsigned long poopTimer;
@@ -148,9 +136,10 @@ class Digimon{
         boolean forcedAsleep = false;
         // avoid counting the same "lights kept on" care mistake multiple times per night
         boolean sleepCareMistakeLogged = false;
+        // when sleep is locked (OFF), only sleep menu can be accessed
+        boolean sleepLocked = false;
 
         void updateTimers(unsigned long delta);
-
 
     public:
 
@@ -176,6 +165,9 @@ class Digimon{
         void setStrength(uint8_t _strength){strength=_strength;};
         void setEffort(uint8_t _effort){effort=_effort;};
         void setDigimonPower(uint8_t _digimonPower){digimonPower=_digimonPower;};
+        void setOverfeedCounter(uint8_t _overfeedCounter){overfeedCounter=_overfeedCounter;};
+        void setSleepDisturbancesCounter(uint8_t _sleepDisturbancesCounter){sleepDisturbancesCounter=_sleepDisturbancesCounter;};
+        void setSicknessCounter(uint8_t _sicknessCounter){sicknessCounter=_sicknessCounter;};
         
         //getters
         
@@ -199,6 +191,9 @@ class Digimon{
         uint8_t getHungerHearts(){return std::round(4.0 * getHunger() / 10.0);};
         uint8_t getStrengthHearts(){return std::round(4.0 * getStrength() / 10.0);};
         uint8_t getEffortHearts(){return std::round(4.0 * getEffort() / 10.0);};
+        uint8_t getOverfeedCounter(){return overfeedCounter;};
+        uint8_t getSleepDisturbancesCounter(){return sleepDisturbancesCounter;};
+        uint8_t getSicknessCounter(){return sicknessCounter;};
 
         void printSerial();
         void reduceHunger(int8_t amount){
@@ -222,4 +217,6 @@ class Digimon{
         bool isForcedAsleep(){return forcedAsleep;};
         void setSleepCareMistakeLogged(bool v){ sleepCareMistakeLogged = v; };
         bool isSleepCareMistakeLogged(){ return sleepCareMistakeLogged; };
+        void setSleepLocked(bool v){ sleepLocked = v; };
+        bool isSleepLocked(){ return sleepLocked; };
 };

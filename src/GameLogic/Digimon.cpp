@@ -43,7 +43,7 @@ void Digimon::updateTimers(unsigned long delta){
 
     feedTimer += delta;
     if(feedTimer >= properties->feedTimeSec*1000*60*10){ //every 10 minutes, hunger increases by 1
-        feedTimer =0;
+        feedTimer = 0;
         uint8_t hunger = getHunger();
 
         if(hunger < 0){

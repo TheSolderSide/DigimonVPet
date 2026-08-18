@@ -5,9 +5,10 @@
 /////////////////////////////////////////////////////////////////
 
 #include "DigimonWatchingScreen.h"
+#include "../../GameLogic/EvolutionHandler.h"
 #include <Arduino.h>
 
-V20::DigimonWatchingScreen::DigimonWatchingScreen(AbstractSpriteManager* _spriteManager, Digimon* _digimon, int8_t _minX, int8_t _maxX, int8_t _minY, int8_t _maxY) {
+V20::DigimonWatchingScreen::DigimonWatchingScreen(EvolutionHandler* _evolutionHandler, AbstractSpriteManager* _spriteManager, Digimon* _digimon, int8_t _minX, int8_t _maxX, int8_t _minY, int8_t _maxY) {
   setXLimitations(_minX, _maxX); // -8 32
   setYLimitations(_minY, _maxY);
   digimonX = 8;
@@ -22,6 +23,7 @@ V20::DigimonWatchingScreen::DigimonWatchingScreen(AbstractSpriteManager* _sprite
   poopAnimationCounter = 0;
   updateIntervallTime = 500;
   digimon = _digimon;
+  evolutionHandler = _evolutionHandler;
 }
 
 boolean V20::DigimonWatchingScreen::randomDecision(int percent) {
@@ -29,9 +31,7 @@ boolean V20::DigimonWatchingScreen::randomDecision(int percent) {
 }
 
 void V20::DigimonWatchingScreen::evolveDigimon(){
-  if(digimon->getDigimonIndex() < DIGIMON_AGUMON){
-    digimon->setDigimonIndex(digimon->getDigimonIndex()+1);
-  }
+  digimon->setDigimonIndex(evolutionHandler->getEvolutionOption(*digimon));
 }
 
 void V20::DigimonWatchingScreen::loop(long delta) {

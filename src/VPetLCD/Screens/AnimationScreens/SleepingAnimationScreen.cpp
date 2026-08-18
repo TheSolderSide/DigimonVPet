@@ -34,4 +34,4 @@ namespace V20 {
                 lcd->drawSymbol(SYMBOL_SLEEPING, symbolX, symbolY, false, pixelColor);
         });
     };
- }
+}
