@@ -1,4 +1,5 @@
 #include <cassert>
+#include "../../src/VPetLCD/Screens/AnimationScreens/CureAnimationScreen.h"
 #include <iostream>
 #include "../../src/GameLogic/Digimon.h"
 #include "../../src/GameLogic/EvolutionHandler.h"
@@ -9,6 +10,8 @@
 void VPetLCD::draw16BitArray(const uint16_t*, int16_t, int16_t, boolean, uint16_t) {}
 void VPetLCD::drawCharArrayOnLCD(char*, int16_t, int16_t, uint16_t) {}
 void VPetLCD::drawSymbol(uint16_t, int16_t, int16_t, boolean, uint16_t) {}
+
+void VPetLCD::drawPixelOnLCD(int16_t, int16_t, uint16_t) {}
 
 constexpr unsigned long minute = 60000;
 Digimon pet() {
@@ -178,7 +181,29 @@ void savesAndEvolution() {
     assert(evolution.getEvolutionOption(baby) == DIGIMON_BETAMON);
 }
 
+void curing() {
+    auto d = pet();
+    CureAnimationScreen screen(nullptr, &d);
+    int completions = 0;
+    screen.setEndCallback([&](bool treated) {
+        ++completions;
+        if (treated) assert(d.cure());
+    });
+    assert(!d.cure());
+    screen.start(); screen.loop(1801); screen.loop(5000);
+    assert(completions == 1 && d.getState() == STATE_AWAKE);
+    assert(d.getTrainingCounter() == 0 && d.getStrength() == 10);
+    d.setState(STATE_SICK);
+    screen.start(); screen.loop(2499);
+    assert(d.getState() == STATE_SICK);
+    screen.loop(1); screen.loop(5000);
+    assert(completions == 2 && d.getState() == STATE_AWAKE);
+    assert(d.getTrainingCounter() == 0 && d.getCareMistakes() == 0);
+    d.setState(STATE_SICK); d.setLightsOn(false);
+    assert(d.cure() && d.getState() == STATE_ASLEEP);
+}
+
 int main() {
-    careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
+    curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
     std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
 }

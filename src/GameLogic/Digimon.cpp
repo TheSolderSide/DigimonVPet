@@ -90,6 +90,13 @@ bool Digimon::disturbSleep() {
     return true;
 }
 
+bool Digimon::cure() {
+    if (state != STATE_SICK) return false;
+    state = lightsOn ? (inBedtime ? STATE_TIRED : STATE_AWAKE) : STATE_ASLEEP;
+    updateCare(0);
+    return true;
+}
+
 void Digimon::applyLights(bool on) {
     if (state == STATE_EGG || state == STATE_DEAD) return;
     lightsOn = on;

@@ -232,6 +232,7 @@ class Digimon{
         void beginTraining();
         void finishTraining(bool won);
         bool disturbSleep();
+        bool cure();
         void applyLights(bool on);
         void updateSleepSchedule(uint8_t hours, uint8_t minutes, bool clockChanged = false);
         void updateCare(unsigned long delta);

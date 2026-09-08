@@ -32,6 +32,8 @@ class TrainingAnimationScreen : public VPetLCD::Screen {
   public:
     TrainingAnimationScreen(AbstractSpriteManager* _spriteManager, uint16_t _digimonSpriteIndex, Digimon* _digimon, uint8_t _mode=MODE_DEFEND);
     void startGame();
+    // Display a result without starting/counting training or awarding stats.
+    void showResult(bool won) { stage = won ? 2 : 3; stageTimer = 0; }
     void chooseShieldTop();
     void chooseShieldBottom();
     void loop(unsigned long delta);

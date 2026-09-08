@@ -9,7 +9,8 @@ build.mkdir(parents=True, exist_ok=True)
 compiler = root / '.pio' / 'test-tools' / 'ziglang' / 'zig.exe'
 env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(build / 'zig-cache'))
 sources = ['tests/native/care_tests.cpp', 'src/GameLogic/Digimon.cpp',
-           'src/GameLogic/EvolutionHandler.cpp', 'src/SaveGame/SaveGameHandler.cpp',
+           'src/GameLogic/EvolutionHandler.cpp',
+           'src/VPetLCD/Screens/AnimationScreens/CureAnimationScreen.cpp', 'src/SaveGame/SaveGameHandler.cpp',
            'src/VPetLCD/Screens/AnimationScreens/TrainingAnimationScreen.cpp']
 executable = build / 'care-v1.exe'
 with (build / 'compile.log').open('w') as log:

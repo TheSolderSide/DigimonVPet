@@ -21,6 +21,7 @@
 #include "VPetLCD/Screens/AnimationScreens/EatingAnimationScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/SleepingAnimationScreen.h"
 #include "VPetLCD/Screens/TrainingScreen.h"
+#include "VPetLCD/Screens/AnimationScreens/CureAnimationScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/TrainingAnimationScreen.h"
 
 #include "GameLogic/ScreenStateMachine.h"
@@ -101,13 +102,14 @@ V20::SelectionScreen lightSelection(true);
 V20::SelectionScreen foodRefusal(false);
 V20::SleepingAnimationScreen sleepingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 V20::ClockScreen clockScreen(true);
+CureAnimationScreen cureAnimationScreen(&spriteManager, &digimon);
 V20::EatingAnimationScreen eatingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 V20::TrainingScreen trainingSelection;
 TrainingAnimationScreen trainingAnimationDefend(&spriteManager, digimon.getDigimonIndex(), &digimon);
 TrainingAnimationScreen trainingAnimationAttack(&spriteManager, digimon.getDigimonIndex(), &digimon, 1);
 
-//19 screens and 3 signals (next, confirm and back)
-uint8_t numberOfScreens = 19;
+//20 screens and 3 signals (next, confirm and back)
+uint8_t numberOfScreens = 20;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -137,6 +139,7 @@ uint8_t sleepingAnimationScreenId = stateMachine.addScreen(&sleepingAnimationScr
 uint8_t trainingSelectionId = stateMachine.addScreen(&trainingSelection);
 uint8_t trainingAnimationDefendId = stateMachine.addScreen(&trainingAnimationDefend);
 uint8_t trainingAnimationAttackId = stateMachine.addScreen(&trainingAnimationAttack);
+uint8_t cureAnimationScreenId = stateMachine.addScreen(&cureAnimationScreen);
 
 uint8_t poop=0;
 
@@ -191,7 +194,8 @@ void stateMachineInit() {
   stateMachine.addTransitionAction(digimonScreenId, confirmSignal, []() {
     const uint8_t selected = menuBar.getSelection();
     if (digimon.getState() == STATE_ASLEEP || !digimon.isLightsOn()) {
-      if (selected != 0 && selected != 1 && selected != 2 && selected != 3 && selected != 5) return;
+      if (selected != 0 && selected != 1 && selected != 2 && selected != 3 && selected != 5 &&
+          !(selected == 6 && digimon.getState() == STATE_SICK)) return;
       if (selected >= 1 && selected <= 3 && digimon.disturbSleep()) {
         savegame.saveDigimon(&digimon);
       }
@@ -247,7 +251,10 @@ void stateMachineInit() {
       lightSelection.setSelection(0);
       stateMachine.setCurrentScreen(lightSelectionId);
       break;
-    case 6: //cure
+    case 6: // Cure sickness, or refuse with the training loss animation.
+      cureAnimationScreen.start();
+      if (digimon.getState() != STATE_SICK) soundManager.playAlert();
+      stateMachine.setCurrentScreen(cureAnimationScreenId);
       break;
     }
     });
@@ -309,6 +316,15 @@ void stateMachineInit() {
   stateMachine.addTransitionAction(clockScreenId, confirmSignal, [applyClockChange]() {
     minutes = (minutes + 1) % 60;
     applyClockChange();
+  });
+
+  cureAnimationScreen.setEndCallback([](bool treated) {
+    if (treated && digimon.cure()) {
+      digimon.updateSleepSchedule(hours, minutes);
+      savegame.saveDigimon(&digimon);
+      soundManager.playHappy();
+    }
+    stateMachine.setCurrentScreen(digimonScreenId);
   });
 
   // Training selection transitions
@@ -595,6 +611,9 @@ void loop()
   if (stateMachine.getCurrentScreen() == &trainingAnimationAttack)
     trainingAnimationAttack.loop(lastDelta);
   
+  if (stateMachine.getCurrentScreen() == &cureAnimationScreen)
+    cureAnimationScreen.loop(lastDelta);
+
   // Menus remain readable without changing the pet's lights or sleep state.
   const uint8_t currentScreenId = stateMachine.getCurrentScreenId();
   screen.setForceBlackScreen(!digimon.isLightsOn() &&
