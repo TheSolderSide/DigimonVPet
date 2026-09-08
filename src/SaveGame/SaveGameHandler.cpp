@@ -16,7 +16,24 @@ struct SaveExtension {
 static_assert(EXTENSION_ADDRESS + sizeof(SaveExtension) <= EEPROM_SIZE, "Save exceeds EEPROM");
 }
 
-void SaveGameHandler::loadDigimon(Digimon* digimon) {
+void SaveGameHandler::resetDigimon(Digimon* digimon) {
+    for (int address = 0; address < EEPROM_SIZE; ++address) {
+        EEPROM.put(address, uint8_t(0xFF));
+    }
+    *digimon = Digimon(DIGIMON_EGG);
+    digimon->setProperties(&DIGIMON_DATA[DIGIMON_EGG]);
+    saveDigimon(digimon);
+}
+
+bool SaveGameHandler::loadDigimon(Digimon* digimon) {
+    // Reject blank/invalid EEPROM before applying any values to the live pet.
+    const uint16_t index = EEPROM.readUShort(ADRESS_DIGIMONINDEX);
+    const uint8_t state = EEPROM.readByte(ADDRESS_STATE);
+    if (index >= N_DIGIMON || state > STATE_DEAD ||
+        ((index == DIGIMON_EGG) != (state == STATE_EGG)) ||
+        EEPROM.readByte(ADDRESS_NUMBEROFPOOPS) > 8 ||
+        EEPROM.readByte(ADDRESS_LIGHTS) > 1) return false;
+    *digimon = Digimon(index);
     digimon->setDigimonIndex(EEPROM.readUShort(ADRESS_DIGIMONINDEX));
     if (digimon->getDigimonIndex() >= N_DIGIMON) digimon->setDigimonIndex(DIGIMON_EGG);
     digimon->setProperties(&DIGIMON_DATA[digimon->getDigimonIndex()]);
@@ -57,6 +74,7 @@ void SaveGameHandler::loadDigimon(Digimon* digimon) {
         digimon->restoreCareTrackingState(CareTrackingState{});
     }
 
+    return true;
 }
 
 void SaveGameHandler::saveDigimon(Digimon* digimon) {

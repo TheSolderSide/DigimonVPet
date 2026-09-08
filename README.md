@@ -94,8 +94,16 @@ Save/load now includes overfeeds, disturbances, the overfeeding latch and the
 shared care episode. A versioned extension also keeps intact timer values away
 from the legacy EEPROM layout's overlapping addresses. Loading a legacy save
 preserves its existing counters but restarts its unrecoverable evolution timer
-and initializes the new counters. The existing commented-out startup load is
-still disabled; this does not add offline progression or automatic resume.
+and initializes the new counters. Startup restores saved data on ordinary power-on or Reset. To start a new
+pet, hold the **first game button (GPIO35)** while pressing Reset, then release
+it after boot. Holding that button while powering on also clears the save.
+The startup hold is consumed before normal input handling, so it cannot open
+the clock or exit a menu. Normal gameplay holds are unchanged.
+
+Blank or invalid saves start a fresh egg. `ESP_RST_EXT` also requests a fresh
+egg on chips that support it; the original ESP32 reports its Reset button as
+`ESP_RST_POWERON`. The game clock still starts at its configured default;
+offline progression is not implemented.
 
 The evolution thresholds themselves are unchanged. In `EvolutionHandler.cpp`,
 Betamon's Meramon condition catches every care<=4/training<=48 case before the

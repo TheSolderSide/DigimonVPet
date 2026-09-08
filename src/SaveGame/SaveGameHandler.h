@@ -30,7 +30,8 @@ class SaveGameHandler{
     public:
         SaveGameHandler(){};
         void init(){EEPROM.begin(EEPROM_SIZE);}
-        void loadDigimon(Digimon* digimon);
+        bool loadDigimon(Digimon* digimon);
+        void resetDigimon(Digimon* digimon);
         void saveDigimon(Digimon* digimon);
 
 

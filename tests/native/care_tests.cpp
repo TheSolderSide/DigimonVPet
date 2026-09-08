@@ -226,7 +226,28 @@ void poopSickness() {
     assert(delayed.getNumberOfPoops() == 8 && delayed.getState() == STATE_SICK);
 }
 
+void bootSaveHandling() {
+    SaveGameHandler saves;
+    auto d = pet();
+    EEPROM.bytes.fill(0xFF);
+    assert(!saves.loadDigimon(&d));
+    assert(d.getDigimonIndex() == DIGIMON_AGUMON);
+    d.setCareMistakes(7); d.setTrainingCounter(9); d.setNumberOfPoops(6);
+    saves.saveDigimon(&d);
+    Digimon restored(DIGIMON_EGG);
+    assert(saves.loadDigimon(&restored));
+    assert(restored.getDigimonIndex() == DIGIMON_AGUMON);
+    assert(restored.getCareMistakes() == 7 && restored.getTrainingCounter() == 9);
+    saves.resetDigimon(&restored);
+    assert(restored.getState() == STATE_EGG && restored.isLightsOn());
+    assert(restored.getCareMistakes() == 0 && restored.getTrainingCounter() == 0);
+    assert(restored.getNumberOfPoops() == 0 && restored.getEvolutionTimer() == 0);
+    assert(saves.loadDigimon(&d));
+    assert(d.getDigimonIndex() == DIGIMON_EGG && d.getCareMistakes() == 0);
+    assert(EEPROM.bytes[255] == 0xFF);
+}
+
 int main() {
-    poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
+    bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
     std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
 }

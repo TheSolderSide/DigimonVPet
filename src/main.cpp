@@ -8,6 +8,7 @@
 /////////////////////////////////////////////////////////////////
 
 #include <cmath>
+#include <Arduino.h>
 #include "VPetLCD/VPetLCD.h"
 #include "VPetLCD/VPetLCDMenuBar32p.h"
 #include "VPetLCD/Screens/AgeWeightScreen.h"
@@ -521,6 +522,11 @@ void setup(void)
 {
   Serial.begin(115200);
   Serial.println("Start");
+  // GPIO35 uses the board's external pull-up. Sample only at startup.
+  pinMode(BUTTON_1, INPUT);
+  const bool resetButtonInitiallyHeld = digitalRead(BUTTON_1) == LOW;
+  delay(50);
+  const bool eraseSaveRequested = resetButtonInitiallyHeld && digitalRead(BUTTON_1) == LOW;
   if (!soundManager.begin()) {
     Serial.println("Buzzer initialization failed");
   }
@@ -533,33 +539,36 @@ void setup(void)
   hungryScreen.setMaxHearts(4);
   Serial.println(digimon.getState());
 
-  /*
-  digimon.setDigimonIndex(10);
-    digimon.setState(20);
-    digimon.setAge(30);
-    digimon.setWeight(40);
-    digimon.setFeedCounter(50);
-    digimon.setCareMistakes(60);
-    digimon.setTrainingCounter(70);
-    digimon.setTimeUntilEvolution(80);
-    digimon.setPoopTimer(90);
-    digimon.setAgeTimer(100);
-    digimon.setEvolutionTimer(110);
-    Serial.println(digimon.getDigimonIndex());
-  Serial.println(digimon.getState());
-  Serial.println(digimon.getAge());
-  Serial.println(digimon.getWeight());
-  Serial.println(digimon.getFeedCounter());
-  Serial.println(digimon.getCareMistakes());
-  Serial.println(digimon.getTrainingCounter());
-  Serial.println(digimon.getTimeUntilEvolution());
-  Serial.println(digimon.getPoopTimer());
-  Serial.println(digimon.getAgeTimer());
-  Serial.println(digimon.getEvolutionTimer());
-  savegame.saveDigimon(&digimon);
-  */
-
- //savegame.loadDigimon(&digimon);
+  savegame.init();
+  const esp_reset_reason_t resetReason = esp_reset_reason();
+  Serial.printf("Boot reset reason: %d\n", static_cast<int>(resetReason));
+  if (eraseSaveRequested || resetReason == ESP_RST_EXT) {
+    Serial.println("New game requested: clearing save and starting a new egg");
+    savegame.resetDigimon(&digimon);
+  } else {
+    // Power-on restores the save; other resets also preserve progress.
+    if (!savegame.loadDigimon(&digimon)) {
+      Serial.println("No valid save: starting a new egg");
+      savegame.resetDigimon(&digimon);
+    } else {
+      Serial.println(resetReason == ESP_RST_POWERON ? "Power-on: save restored" : "Save restored after reset");
+    }
+  }
+  if (eraseSaveRequested) {
+    Serial.println("Release the first game button to begin");
+    // Do not feed the startup hold into the normal clock/Back handlers.
+    do {
+      while (digitalRead(BUTTON_1) == LOW) delay(10);
+      delay(50);
+    } while (digitalRead(BUTTON_1) == LOW);
+  }
+  // Screens were constructed before setup, when the pet was still an egg.
+  eatingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  sleepingAnimationScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  trainingAnimationDefend.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  trainingAnimationAttack.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+  digiNameScreen.setDigimonName(digimon.getProperties()->digiName);
 
   //Some tft initialization stuff
   tft.init();
@@ -572,8 +581,7 @@ Serial.println("button_init");
   Serial.println("setupScreens");
   setupScreens();
   
-  // init savegame (EEPROM)
-  savegame.init();
+
 
   stateMachineInit();
   Serial.println("stateMachineInit");
