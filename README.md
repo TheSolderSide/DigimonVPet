@@ -39,11 +39,6 @@ soundManager.playHappy(); // Sound 3: rising celebration melody
 ```
 
 You can also use `soundManager.play(SoundManager::Sound::Alert)`.
-Both training modes play the happy sound for a final win and the alert sound
-for a final loss, as their result animation starts. A non-egg pet also plays
-the alert once when hunger is below 2. Feeding it back to 2 or more allows
-another alert the next time it becomes hungry. Hunger alerts wait until
-any current sound finishes.
 Playback uses PWM without delays; keep calling `update()` regularly for note timing.
 Alerts and celebrations replace the current sound; button beeps do not interrupt them.
 Call `stop()` to silence playback, or `setEnabled(false)` to mute and

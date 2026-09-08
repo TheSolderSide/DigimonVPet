@@ -104,6 +104,8 @@ class VPetLCD {
     //Renders the Content of the Virtual LCD according to the Screen Object
     void renderScreen(Screen *s){
       if(forceBlackScreen){
+        // Clear old icons and highlights before drawing the current menu page.
+        canvas->fillCanvas(backgroundColor);
         // render only the VPET LCD area as black so the menu bar remains visible
         canvas->fillRect(lcdX, lcdY, lcdScale * lcdWidth, lcdScale * lcdHeight, 0x0000);
         // draw the menu bar on top so it's still visible
