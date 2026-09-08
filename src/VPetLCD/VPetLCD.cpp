@@ -95,6 +95,14 @@ void VPetLCD::drawMenu() {
   if (menuBar != NULL) {
     menuBar->drawMenu(this);
   }
+  if (callActive) {
+    // A small bell in the reserved strip, visible on every menu page.
+    const int bellX = menuBar ? menuBar->getBarWidth() + 6 : lcdX + lcdWidth * lcdScale - 10;
+    const uint8_t bell[8] = {0x18, 0x3C, 0x7E, 0x7E, 0x7E, 0xFF, 0x00, 0x18};
+    for (int y = 0; y < 8; ++y)
+      for (int x = 0; x < 8; ++x)
+        if (bell[y] & (0x80 >> x)) canvas->fillRect(bellX + x, 10 + y, 1, 1, 0xF800);
+  }
 }
 
 /**

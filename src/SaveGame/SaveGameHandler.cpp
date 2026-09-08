@@ -1,7 +1,25 @@
 #include "SaveGameHandler.h"
 
+namespace {
+constexpr int EXTENSION_ADDRESS = 64;
+constexpr uint32_t EXTENSION_MAGIC = 0x56504532;
+struct SaveExtension {
+    uint32_t magic;
+    uint8_t version;
+    uint8_t overfeeds;
+    uint8_t disturbances;
+    bool forcedAsleep;
+    uint32_t evolutionTimer;
+    uint32_t feedTimer;
+    CareTrackingState care;
+};
+static_assert(EXTENSION_ADDRESS + sizeof(SaveExtension) <= EEPROM_SIZE, "Save exceeds EEPROM");
+}
+
 void SaveGameHandler::loadDigimon(Digimon* digimon) {
     digimon->setDigimonIndex(EEPROM.readUShort(ADRESS_DIGIMONINDEX));
+    if (digimon->getDigimonIndex() >= N_DIGIMON) digimon->setDigimonIndex(DIGIMON_EGG);
+    digimon->setProperties(&DIGIMON_DATA[digimon->getDigimonIndex()]);
     digimon->setState(EEPROM.readByte(ADDRESS_STATE));
     digimon->setAge(EEPROM.readUShort(ADDRESS_AGE));
     digimon->setWeight(EEPROM.readUShort(ADDRESS_WEIGHT));
@@ -20,6 +38,25 @@ void SaveGameHandler::loadDigimon(Digimon* digimon) {
     // load lights and sleep-flag
     digimon->setLightsOn(EEPROM.readByte(ADDRESS_LIGHTS));
     digimon->setSleepCareMistakeLogged(EEPROM.readByte(ADDRESS_SLEEP_LOGGED));
+    SaveExtension extra{};
+    EEPROM.get(EXTENSION_ADDRESS, extra);
+    if (extra.magic == EXTENSION_MAGIC && extra.version == 1) {
+        digimon->setOverfeedCounter(extra.overfeeds);
+        digimon->setSleepDisturbancesCounter(extra.disturbances);
+        digimon->setForcedAsleep(extra.forcedAsleep);
+        digimon->setEvolutionTimer(extra.evolutionTimer);
+        digimon->setFeedTimer(extra.feedTimer);
+        digimon->restoreCareTrackingState(extra.care);
+    } else {
+        // Old evolution timer bytes overlap DP/feed bytes; they cannot be recovered.
+        digimon->setEvolutionTimer(0);
+        digimon->setFeedTimer(EEPROM.readULong(FEED_TIMER));
+        digimon->setOverfeedCounter(0);
+        digimon->setSleepDisturbancesCounter(0);
+        digimon->setForcedAsleep(!digimon->isLightsOn());
+        digimon->restoreCareTrackingState(CareTrackingState{});
+    }
+
 }
 
 void SaveGameHandler::saveDigimon(Digimon* digimon) {
@@ -42,5 +79,17 @@ void SaveGameHandler::saveDigimon(Digimon* digimon) {
     // persist lights and sleep-flag
     EEPROM.put(ADDRESS_LIGHTS, digimon->isLightsOn());
     EEPROM.put(ADDRESS_SLEEP_LOGGED, digimon->isSleepCareMistakeLogged());
+    // Keep the legacy layout readable and store new fields plus intact timers
+    // outside its overlapping evolution/DP/feed addresses.
+    SaveExtension extra{};
+    extra.magic = EXTENSION_MAGIC;
+    extra.version = 1;
+    extra.overfeeds = digimon->getOverfeedCounter();
+    extra.disturbances = digimon->getSleepDisturbancesCounter();
+    extra.forcedAsleep = digimon->isForcedAsleep();
+    extra.evolutionTimer = digimon->getEvolutionTimer();
+    extra.feedTimer = digimon->getFeedTimer();
+    extra.care = digimon->getCareTrackingState();
+    EEPROM.put(EXTENSION_ADDRESS, extra);
     EEPROM.commit();
 }

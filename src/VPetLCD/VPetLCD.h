@@ -39,6 +39,7 @@ class VPetLCD {
     uint16_t lcdInprintColor = 0x64EA;//0xAFF1;
     uint16_t lcdSelectionColor = 0x0001;
     bool forceBlackScreen = false;
+    bool callActive = false;
 
     void startRendering();
     void endRendering();
@@ -52,6 +53,7 @@ class VPetLCD {
 
     void drawMenuItem( uint16_t index, int16_t x, int16_t y, uint16_t scale, boolean mirror, uint16_t color);
     void drawMenu();
+    void setCallActive(bool active){ callActive = active; }
 
     void drawByteArray( const byte toDraw[], uint16_t spriteWidth, uint16_t spriteHeight, int16_t onLcdX, int16_t onLcdY, boolean mirror, uint16_t color);
     void draw16BitArray( const uint16_t toDraw[], int16_t onLcdX, int16_t onLcdY, boolean mirror, uint16_t color);

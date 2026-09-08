@@ -98,15 +98,16 @@ V20::PercentageScreen tPercentageScreen("WIN", 'T', 93);
 V20::SelectionScreen foodSelection(true);
 V20::SelectionScreen fightSelection(true);
 V20::SelectionScreen lightSelection(true);
+V20::SelectionScreen foodRefusal(false);
 V20::SleepingAnimationScreen sleepingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
-V20::ClockScreen clockScreen(false);
+V20::ClockScreen clockScreen(true);
 V20::EatingAnimationScreen eatingAnimationScreen(&spriteManager, digimon.getDigimonIndex());
 V20::TrainingScreen trainingSelection;
 TrainingAnimationScreen trainingAnimationDefend(&spriteManager, digimon.getDigimonIndex(), &digimon);
 TrainingAnimationScreen trainingAnimationAttack(&spriteManager, digimon.getDigimonIndex(), &digimon, 1);
 
-//17 screens and 3 signals (one for each button)
-uint8_t numberOfScreens = 18;
+//19 screens and 3 signals (next, confirm and back)
+uint8_t numberOfScreens = 19;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -129,6 +130,7 @@ uint8_t tPercentageScreenId = stateMachine.addScreen(&tPercentageScreen);
 uint8_t foodSelectionId = stateMachine.addScreen(&foodSelection);
 uint8_t fightSelectionId = stateMachine.addScreen(&fightSelection);
 uint8_t lightSelectionId = stateMachine.addScreen(&lightSelection);
+uint8_t foodRefusalId = stateMachine.addScreen(&foodRefusal);
 uint8_t clockScreenId = stateMachine.addScreen(&clockScreen);
 uint8_t eatingAnimationScreenId = stateMachine.addScreen(&eatingAnimationScreen);
 uint8_t sleepingAnimationScreenId = stateMachine.addScreen(&sleepingAnimationScreen);
@@ -137,17 +139,6 @@ uint8_t trainingAnimationDefendId = stateMachine.addScreen(&trainingAnimationDef
 uint8_t trainingAnimationAttackId = stateMachine.addScreen(&trainingAnimationAttack);
 
 uint8_t poop=0;
-
-// Minutes since the start of a daily interval, including intervals across midnight.
-bool isInDailyWindow(int currentMins, int startMins, int endMins) {
-  const int duration = (endMins - startMins + 24 * 60) % (24 * 60);
-  return (currentMins - startMins + 24 * 60) % (24 * 60) < duration;
-}
-
-bool isBedtime(const DigimonProperties* props) {
-  const int tiredMins = (props->sleepHour * 60 - 30 + 24 * 60) % (24 * 60);
-  return isInDailyWindow(hours * 60 + minutes, tiredMins, props->wakeUpHour * 60);
-}
 
 void stateMachineInit() {
   const DigimonProperties *properties = dataLoader.getDigimonProperties(digimon.getDigimonIndex());
@@ -198,10 +189,12 @@ void stateMachineInit() {
   //Here are the conditional transitions handled.
   stateMachine.addTransition(digimonScreenId, digimonScreenId, confirmSignal);
   stateMachine.addTransitionAction(digimonScreenId, confirmSignal, []() {
-    // With lights off, only stats (0) and lights (5) are available.
-    if(!digimon.isLightsOn() || digimon.getState() == STATE_ASLEEP){
-      uint8_t sel = menuBar.getSelection();
-      if(sel != 0 && sel != 5) return;
+    const uint8_t selected = menuBar.getSelection();
+    if (digimon.getState() == STATE_ASLEEP || !digimon.isLightsOn()) {
+      if (selected != 0 && selected != 1 && selected != 2 && selected != 3 && selected != 5) return;
+      if (selected >= 1 && selected <= 3 && digimon.disturbSleep()) {
+        savegame.saveDigimon(&digimon);
+      }
     }
 
     switch (menuBar.getSelection()) {
@@ -271,22 +264,52 @@ void stateMachineInit() {
     uint8_t selection = foodSelection.getSelection();
     switch (selection) {
     case 0:
-      digimon.addWeight(1);
-      digimon.increaseHunger(1);
+      if (!digimon.feedMeal()) {
+        stateMachine.setCurrentScreen(foodRefusalId);
+        soundManager.playAlert();
+        break;
+      }
+      savegame.saveDigimon(&digimon);
       eatingAnimationScreen.setSprites(SYMBOL_MEAT, SYMBOL_HALF_MEAT,SYMBOL_EMPTY_MEAT);
       eatingAnimationScreen.startAnimation();
       stateMachine.setCurrentScreen(eatingAnimationScreenId);
       break;
     case 1:
-      digimon.addWeight(2);
-      digimon.addStrength(2);
-      digimon.addDigimonPower(2);
+      if (!digimon.feedProtein()) {
+        stateMachine.setCurrentScreen(foodRefusalId);
+        soundManager.playAlert();
+        break;
+      }
+      savegame.saveDigimon(&digimon);
       eatingAnimationScreen.setSprites(SYMBOL_PILL, SYMBOL_HALF_PILL,SYMBOL_EMPTY);
       eatingAnimationScreen.startAnimation();
       stateMachine.setCurrentScreen(eatingAnimationScreenId);
       break;
     }
     });
+
+  stateMachine.addTransition(foodRefusalId, foodSelectionId, confirmSignal);
+  stateMachine.addTransition(foodRefusalId, foodSelectionId, nextSignal);
+
+  // Adjust the clock directly: next adds an hour, confirm adds a minute.
+  auto applyClockChange = []() {
+    seconds = 0;
+    clockScreen.setHours(hours);
+    clockScreen.setMinutes(minutes);
+    clockScreen.setSeconds(seconds);
+    digimon.updateSleepSchedule(hours, minutes, true);
+    savegame.saveDigimon(&digimon);
+  };
+  stateMachine.addTransition(clockScreenId, clockScreenId, nextSignal);
+  stateMachine.addTransitionAction(clockScreenId, nextSignal, [applyClockChange]() {
+    hours = (hours + 1) % 24;
+    applyClockChange();
+  });
+  stateMachine.addTransition(clockScreenId, clockScreenId, confirmSignal);
+  stateMachine.addTransitionAction(clockScreenId, confirmSignal, [applyClockChange]() {
+    minutes = (minutes + 1) % 60;
+    applyClockChange();
+  });
 
   // Training selection transitions
   stateMachine.addTransition(trainingSelectionId, trainingSelectionId, nextSignal);
@@ -300,10 +323,12 @@ void stateMachineInit() {
     switch (selection) {
     case 0: // Attack
       trainingAnimationAttack.startGame();
+      savegame.saveDigimon(&digimon);
       stateMachine.setCurrentScreen(trainingAnimationAttackId);
       break;
     case 1: // Defence
       trainingAnimationDefend.startGame();
+      savegame.saveDigimon(&digimon);
       stateMachine.setCurrentScreen(trainingAnimationDefendId);
       break;
     }
@@ -330,6 +355,7 @@ void stateMachineInit() {
 
   // Play the result once, alongside the happy/angry animation in either mode.
   auto playTrainingResult = [](bool won) {
+    savegame.saveDigimon(&digimon);
     Serial.println(won ? "Training result: WIN, requesting happy sound"
                        : "Training result: LOSS, requesting alert sound");
     if (won) soundManager.playHappy();
@@ -357,11 +383,7 @@ void stateMachineInit() {
     if (digimon.getState() == STATE_EGG) return;
 
     const bool lightsOn = lightSelection.getSelection() == 0;
-    digimon.setLightsOn(lightsOn);
-    digimon.setForcedAsleep(!lightsOn);
-    digimon.setState(lightsOn
-        ? (isBedtime(digimon.getProperties()) ? STATE_TIRED : STATE_AWAKE)
-        : STATE_ASLEEP);
+    digimon.applyLights(lightsOn);
     stateMachine.setCurrentScreen(digimonScreenId);
     savegame.saveDigimon(&digimon);
   });
@@ -395,19 +417,23 @@ void stateMachineInit() {
 
 void button_init()
 {
-  btn1.setLongClickHandler([](Button2& b) {
-    // Keep the dark home screen on the menu while the lights are off.
-    if (digimon.isLightsOn() || stateMachine.getCurrentScreenId() != digimonScreenId) {
+  // Process every release directly: rapid taps must not become ignored
+  // double/triple clicks, and a normal press must not be mistaken for Back.
+  btn1.setReleasedHandler([](Button2& b) {
+    if (b.wasPressedFor() >= 700) {
       stateMachine.sendSignal(backSignal);
+    } else if (stateMachine.getCurrentScreenId() == clockScreenId) {
+      stateMachine.sendSignal(nextSignal);
     }
     buttonPressed = true;
-    });
+  });
 
   btn1.setPressedHandler([](Button2& b) {
     soundManager.playBeep();
-    stateMachine.sendSignal(nextSignal);
+    // Clock edits wait for release so holding Back cannot change the hour.
+    if (stateMachine.getCurrentScreenId() != clockScreenId) stateMachine.sendSignal(nextSignal);
     buttonPressed = true;
-    });
+  });
 
   btn2.setPressedHandler([](Button2& b) {
     soundManager.playBeep();
@@ -418,6 +444,7 @@ void button_init()
 
 void setupScreens()
 {
+  menuBar.setBarWidth(displayHeight - 16); // reserve room for the call bell
   menuBar.setIconOnIndex(0,0);
   menuBar.setIconOnIndex(1,1);
   menuBar.setIconOnIndex(2,2);
@@ -458,6 +485,8 @@ void setupScreens()
   lightSelection.setShowIcons(false);
   lightSelection.addOption("ON");
   lightSelection.addOption("OFF");
+  foodRefusal.setShowIcons(false);
+  foodRefusal.addOption("FULL");
 
   //adding the battle options
   fightSelection.setShowIcons(false);
@@ -539,7 +568,6 @@ unsigned long ticker = 0;
 unsigned long tickerResetValue = 1000;
 unsigned long lastDelta = 0;
 unsigned long clockAccMs = 0;
-unsigned long lastEvolutionMs = 0;
 float getFragmentation() ;
 boolean debug=false;
 
@@ -549,12 +577,14 @@ void loop()
   //tft.fillScreen(0x86CE);
   unsigned long t1 = millis();
 
+  const uint16_t previousCareMistakes = digimon.getCareMistakes();
   digimon.loop(lastDelta);
+  if (digimon.getCareMistakes() != previousCareMistakes) savegame.saveDigimon(&digimon);
 
 
   //updating the screens which need the loop
   digimonScreen.loop(lastDelta);
-  clockScreen.loop(lastDelta);
+  // The game clock below is the single source of time for ClockScreen.
   digiNameScreen.loop(lastDelta);
 
   //switch to next frame only when the screen is active
@@ -569,6 +599,7 @@ void loop()
   const uint8_t currentScreenId = stateMachine.getCurrentScreenId();
   screen.setForceBlackScreen(!digimon.isLightsOn() &&
       (currentScreenId == digimonScreenId || currentScreenId == sleepingAnimationScreenId));
+  screen.setCallActive(digimon.isCallActive());
   screen.renderScreen(stateMachine.getCurrentScreen());
   
   if (digimon.isEvolved()){
@@ -576,12 +607,9 @@ void loop()
     digimonScreen.evolveDigimon();
     digimon.setProperties(dataLoader.getDigimonProperties(digimon.getDigimonIndex()));
 
-    // Preserve lights-off sleep; otherwise use the new species' bedtime.
-    const DigimonProperties* newProps = digimon.getProperties();
-    digimon.setState(!digimon.isLightsOn() ? STATE_ASLEEP
-        : (isBedtime(newProps) ? STATE_TIRED : STATE_AWAKE));
-    lastEvolutionMs = millis();
-    digimon.setForcedAsleep(!digimon.isLightsOn());
+    // Keep the chosen lights state and apply the evolved species' schedule.
+    if (digimon.getState() == STATE_EGG) digimon.setState(STATE_AWAKE);
+    digimon.updateSleepSchedule(hours, minutes);
 
     // Ensure animation screens and name screen use the new digimon index after evolution
     // (they were constructed with the old index and need to be updated)
@@ -603,36 +631,13 @@ void loop()
         clockScreen.setMinutes(minutes);
         clockScreen.setSeconds(seconds);
 
-        const DigimonProperties* props = digimon.getProperties();
-        if(props != NULL && (digimon.getState() == STATE_AWAKE ||
-            digimon.getState() == STATE_TIRED || digimon.getState() == STATE_ASLEEP)){
-          const int currentMins = hours * 60 + minutes;
-          const int sleepMins = props->sleepHour * 60;
-          const int wakeMins = props->wakeUpHour * 60;
-          const bool inSleepWindow = isInDailyWindow(currentMins, sleepMins, wakeMins);
-          const int minutesSinceSleep = (currentMins - sleepMins + 24 * 60) % (24 * 60);
-
-          if(digimon.isLightsOn()){
-            digimon.setState(isBedtime(props) ? STATE_TIRED : STATE_AWAKE);
-            // Log once per night if lights stay on for 30 minutes past bedtime.
-            const bool evolutionGraceOver = lastEvolutionMs == 0 || millis() - lastEvolutionMs >= 60000;
-            if(inSleepWindow && minutesSinceSleep >= 30 && evolutionGraceOver &&
-                !digimon.isSleepCareMistakeLogged()){
-              digimon.setCareMistakes(digimon.getCareMistakes() + 1);
-              digimon.setSleepCareMistakeLogged(true);
-              savegame.saveDigimon(&digimon);
-            }
-          }
-
-          // Preserve the existing scheduled wake-up, including clearing tiredness.
-          if(currentMins == wakeMins && seconds == 0){
-            const bool wasAsleep = digimon.getState() == STATE_ASLEEP;
-            digimon.setState(STATE_AWAKE);
-            digimon.setForcedAsleep(false);
-            digimon.setLightsOn(true);
-            digimon.setSleepCareMistakeLogged(false);
-            savegame.saveDigimon(&digimon);
-            if(wasAsleep) stateMachine.setCurrentScreen(digimonScreenId);
+        const uint8_t previousState = digimon.getState();
+        digimon.updateSleepSchedule(hours, minutes);
+        if (previousState != digimon.getState() &&
+            (previousState == STATE_ASLEEP || digimon.getState() == STATE_ASLEEP)) {
+          savegame.saveDigimon(&digimon);
+          if (stateMachine.getCurrentScreenId() != clockScreenId) {
+            stateMachine.setCurrentScreen(digimonScreenId);
           }
         }
     }
@@ -664,15 +669,10 @@ void loop()
     tiredAlertPlayed = true;
   }
 
-  // Alert once per hungry episode; feeding to 2 or more rearms the alert.
-  // Wait for other sounds to finish so hunger cannot interrupt training results.
-  static bool hungerAlertPlayed = false;
-  const bool isHungry = digimon.getState() != STATE_EGG && digimon.getHunger() < 2;
-  if (!isHungry) {
-    hungerAlertPlayed = false;
-  } else if (!hungerAlertPlayed && !soundManager.isPlaying()) {
+  // A shared hunger/strength/sleep call is audible once during its care window.
+  if (digimon.hasCallAlert() && !soundManager.isPlaying()) {
     soundManager.playAlert();
-    hungerAlertPlayed = true;
+    digimon.acknowledgeCallAlert();
   }
 
   unsigned long t2 = millis();

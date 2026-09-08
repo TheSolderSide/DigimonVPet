@@ -38,15 +38,10 @@ void V20::ClockScreen::incrementSeconds() {
 }
 
 void V20::ClockScreen::draw(VPetLCD* lcd) {
-  boolean isAM = hours < 12;
+  const boolean isAM = hours < 12;
+  // Convert only the displayed hour; rendering must not mutate the clock.
+  const uint8_t displayHours = showAMPM ? (hours % 12 == 0 ? 12 : hours % 12) : hours;
   if (showAMPM) {
-
-    if (hours >= 13) {
-      hours -= 12;
-    }
-    if (hours == 0) {
-      hours = 12;
-    }
 
     if (isAM) {
       lcd->drawSymbol(SYMBOL_AM, screenX, screenY + SPRITES_UPPERCASE_ALPHABET_HEIGHT + 2, false, pixelColor);
@@ -56,7 +51,7 @@ void V20::ClockScreen::draw(VPetLCD* lcd) {
     }
   }
 
-  lcd->drawZeroPaddedIntegerOnLCD(hours, screenX, screenY, pixelColor);
+  lcd->drawZeroPaddedIntegerOnLCD(displayHours, screenX, screenY, pixelColor);
   lcd->drawPixelOnLCD(screenX + 2 * (SPRITES_DIGITS_WIDTH + 1), screenY + 1, pixelColor);
   lcd->drawPixelOnLCD(screenX + 2 * (SPRITES_DIGITS_WIDTH + 1), screenY + 5, pixelColor);
   lcd->drawZeroPaddedIntegerOnLCD(minutes, screenX + 2 * (SPRITES_DIGITS_WIDTH + 1) + 2, screenY, pixelColor);

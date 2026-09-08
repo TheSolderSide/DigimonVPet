@@ -16,7 +16,7 @@ TrainingAnimationScreen::TrainingAnimationScreen(AbstractSpriteManager* _spriteM
     spriteManager = _spriteManager;
     digimonSpriteIndex = _digimonSpriteIndex;
     digimon = _digimon;
-    rounds = 3;
+    rounds = 5;
     currentRound = 0;
     blockedCount = 0;
     playerChoicePos = -1;
@@ -27,6 +27,7 @@ TrainingAnimationScreen::TrainingAnimationScreen(AbstractSpriteManager* _spriteM
 }
 
 void TrainingAnimationScreen::startGame(){
+    if (digimon) digimon->beginTraining();
     currentRound = 0;
     blockedCount = 0;
     playerChoicePos = -1;
@@ -84,8 +85,7 @@ void TrainingAnimationScreen::loop(unsigned long delta){
                 if(blockedCount > (rounds/2)){
                     // award
                     if(digimon){
-                        digimon->setTrainingCounter(digimon->getTrainingCounter()+1);
-                        digimon->addDigimonPower(10);
+                        digimon->finishTraining(true);
                     }
                     stage = 2; // success animation
                     stageTimer = 0;
@@ -187,7 +187,7 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
             lcd->drawSymbol(SYMBOL_ATTACK, curX, attackY, false, pxColor);
             // when close to target show result marker centered above digimon for the hold duration
             if(stageTimer >= TRAINING_ATTACK_DURATION && stageTimer < (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
-                int16_t resultX = digiDrawX + (digiWidth/2) - (SPRITES_SYMBOL_RESOLUTION/2);
+                int16_t resultX = digiDrawX + digiWidth + 2;
                 // put result symbol centered in the top half of the virtual LCD
                 int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
                 if(opponentChoicePos == playerChoicePos){
@@ -205,7 +205,7 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
             // mirror the attack symbol so it faces the other direction when attacking
             lcd->drawSymbol(SYMBOL_ATTACK, curX, attackY, true, pxColor);
             if(stageTimer >= TRAINING_ATTACK_DURATION && stageTimer < (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
-                int16_t resultX = digiDrawX + (digiWidth/2) - (SPRITES_SYMBOL_RESOLUTION/2);
+                int16_t resultX = digiDrawX + digiWidth + 2;
                 int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
                 if(opponentChoicePos != playerChoicePos){
                     lcd->drawSymbol(SYMBOL_SUCCESS, resultX, resultY, false, pxColor);
@@ -221,7 +221,7 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
     if(stage == 2 || stage == 3){
         // determine flash phase and ensure flashing only for the configured total
         bool showResultPhase = (stageTimer < TRAINING_FLASH_TOTAL) && (((stageTimer / TRAINING_FLASH_PERIOD) % 2) == 0);
-                int16_t resultX = digiDrawX + (digiWidth/2) - (SPRITES_SYMBOL_RESOLUTION/2);
+                int16_t resultX = digiDrawX + digiWidth + 2;
                 int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
 
         if(showResultPhase){
