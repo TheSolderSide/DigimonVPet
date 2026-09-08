@@ -130,6 +130,32 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
     const int virtualHeight = 16; // virtual LCD height used by this project
     int16_t digiDrawY = screenY + (virtualHeight - digiHeight);
 
+    // after game end show success digimon happy animation shortly
+    // after game end show success/fail as a flashing animation
+    if(stage == 2 || stage == 3){
+        // determine flash phase and ensure flashing only for the configured total
+        bool showResultPhase = (stageTimer < TRAINING_FLASH_TOTAL) && (((stageTimer / TRAINING_FLASH_PERIOD) % 2) == 0);
+                int16_t resultX = digiDrawX + digiWidth + 2;
+                int16_t resultY = screenY;
+
+        if(showResultPhase){
+            // show happy/angry sprite and symbol
+            if(stage == 2){
+                const unsigned short* happy = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_HAPPY);
+                lcd->draw16BitArray(happy, digiDrawX, digiDrawY, true, pxColor);
+                lcd->drawSymbol(SYMBOL_SUCCESS, resultX, resultY, false, pxColor);
+            } else {
+                const unsigned short* angry = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_ANGRY_1);
+                lcd->draw16BitArray(angry, digiDrawX, digiDrawY, true, pxColor);
+                lcd->drawSymbol(SYMBOL_ANGRY, resultX, resultY, false, pxColor);
+            }
+        } else {
+            // show default walk frame (no symbol)
+            const unsigned short* walk = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_WALK_0);
+            lcd->draw16BitArray(walk, digiDrawX, digiDrawY, true, pxColor);
+        }
+        return;
+    }
     // choose which digimon sprite to draw depending on stage/timer
     int spriteToShow = SPRITE_DIGIMON_WALK_0;
     if(stage == 1 && stageTimer < TRAINING_ATTACK_FRAME){
@@ -138,9 +164,19 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
 
     // for end animations (success/fail) we'll flash between happy/angry and walk
 
-    // default draw (will be overridden for flashing below)
+    // Draw a single pet pose for the current gameplay frame.
     const unsigned short* spriteArr = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), spriteToShow);
     lcd->draw16BitArray(spriteArr, digiDrawX, digiDrawY, true, pxColor);
+
+    // During the round-result hold, omit shields and projectiles.
+    if (stage == 1 && stageTimer >= TRAINING_ATTACK_DURATION) {
+        const bool won = mode == MODE_DEFEND
+            ? opponentChoicePos == playerChoicePos
+            : opponentChoicePos != playerChoicePos;
+        lcd->drawSymbol(won ? SYMBOL_SUCCESS : SYMBOL_ANGRY,
+                        digiDrawX + digiWidth + 2, screenY, false, pxColor);
+        return;
+    }
 
     // positions for shield/attacks
     int16_t shieldNearX = digiDrawX + digiWidth + 2; // very close to digimon on right
@@ -185,17 +221,7 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
             int16_t curX = startX - (int16_t)((startX - targetX) * t);
             int16_t attackY = (opponentChoicePos == 1 ? topY : bottomY);
             lcd->drawSymbol(SYMBOL_ATTACK, curX, attackY, false, pxColor);
-            // when close to target show result marker centered above digimon for the hold duration
-            if(stageTimer >= TRAINING_ATTACK_DURATION && stageTimer < (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
-                int16_t resultX = digiDrawX + digiWidth + 2;
-                // put result symbol centered in the top half of the virtual LCD
-                int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
-                if(opponentChoicePos == playerChoicePos){
-                    lcd->drawSymbol(SYMBOL_SUCCESS, resultX, resultY, false, pxColor);
-                } else {
-                    lcd->drawSymbol(SYMBOL_ANGRY, resultX, resultY, false, pxColor);
-                }
-            }
+
         } else { // MODE_ATTACK
             // player attack moves right from near digimon to opponent area
             int16_t startX = digiDrawX + digiWidth + 4;
@@ -204,42 +230,10 @@ void TrainingAnimationScreen::draw(VPetLCD* lcd){
             int16_t attackY = (playerChoicePos == 1 ? topY : bottomY);
             // mirror the attack symbol so it faces the other direction when attacking
             lcd->drawSymbol(SYMBOL_ATTACK, curX, attackY, true, pxColor);
-            if(stageTimer >= TRAINING_ATTACK_DURATION && stageTimer < (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
-                int16_t resultX = digiDrawX + digiWidth + 2;
-                int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
-                if(opponentChoicePos != playerChoicePos){
-                    lcd->drawSymbol(SYMBOL_SUCCESS, resultX, resultY, false, pxColor);
-                } else {
-                    lcd->drawSymbol(SYMBOL_ANGRY, resultX, resultY, false, pxColor);
-                }
-            }
+
         }
     }
 
-    // after game end show success digimon happy animation shortly
-    // after game end show success/fail as a flashing animation
-    if(stage == 2 || stage == 3){
-        // determine flash phase and ensure flashing only for the configured total
-        bool showResultPhase = (stageTimer < TRAINING_FLASH_TOTAL) && (((stageTimer / TRAINING_FLASH_PERIOD) % 2) == 0);
-                int16_t resultX = digiDrawX + digiWidth + 2;
-                int16_t resultY = screenY + (half/2) - (SPRITES_SYMBOL_RESOLUTION/2);
 
-        if(showResultPhase){
-            // show happy/angry sprite and symbol
-            if(stage == 2){
-                const unsigned short* happy = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_HAPPY);
-                lcd->draw16BitArray(happy, digiDrawX, digiDrawY, true, pxColor);
-                lcd->drawSymbol(SYMBOL_SUCCESS, resultX, resultY, false, pxColor);
-            } else {
-                const unsigned short* angry = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_ANGRY_1);
-                lcd->draw16BitArray(angry, digiDrawX, digiDrawY, true, pxColor);
-                lcd->drawSymbol(SYMBOL_ANGRY, resultX, resultY, false, pxColor);
-            }
-        } else {
-            // show default walk frame (no symbol)
-            const unsigned short* walk = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_WALK_0);
-            lcd->draw16BitArray(walk, digiDrawX, digiDrawY, true, pxColor);
-        }
-    }
 }
 
