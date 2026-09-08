@@ -155,7 +155,9 @@ void Digimon::updateTimers(unsigned long delta) {
     const unsigned long poopInterval = properties->poopTimeSec * 1000UL;
     if (poopInterval && poopTimer >= poopInterval) {
         const unsigned long piles = poopTimer / poopInterval;
-        numberOfPoops = numberOfPoops + piles > 4 ? 4 : numberOfPoops + piles;
+        const bool reachedSicknessThreshold = numberOfPoops < 8 && numberOfPoops + piles >= 8;
+        numberOfPoops = numberOfPoops + piles > 8 ? 8 : numberOfPoops + piles;
+        if (reachedSicknessThreshold) state = STATE_SICK;
         weight = piles > weight ? 0 : weight - piles;
         poopTimer %= poopInterval;
     }

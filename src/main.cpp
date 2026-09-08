@@ -243,6 +243,7 @@ void stateMachineInit() {
       Serial.println("Clean Poop button pressed");
       digimonScreen.flushPoop();
       digimon.setNumberOfPoops(0);
+      savegame.saveDigimon(&digimon);
       break;
     case 5: //sleep -> ask for lights ON/OFF
       if (digimon.getState() == STATE_EGG){
@@ -593,9 +594,13 @@ void loop()
   //tft.fillScreen(0x86CE);
   unsigned long t1 = millis();
 
+  const uint8_t previousHealthState = digimon.getState();
   const uint16_t previousCareMistakes = digimon.getCareMistakes();
   digimon.loop(lastDelta);
-  if (digimon.getCareMistakes() != previousCareMistakes) savegame.saveDigimon(&digimon);
+  if (digimon.getCareMistakes() != previousCareMistakes ||
+      (previousHealthState != STATE_SICK && digimon.getState() == STATE_SICK)) {
+    savegame.saveDigimon(&digimon);
+  }
 
 
   //updating the screens which need the loop

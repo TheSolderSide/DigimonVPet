@@ -73,7 +73,7 @@ void V20::DigimonWatchingScreen::calculateWalking() {
   // Keep at least half of the 16-pixel sprite visible at either side.
   const int minAllowedX = max((int)minX, -SPRITES_DIGIMON_RESOLUTION / 2);
   const int maxAllowedX = max(minAllowedX,
-      maxX - SPRITES_DIGIMON_RESOLUTION / 2 - digimon->getNumberOfPoops() * poopWidth);
+      maxX - SPRITES_DIGIMON_RESOLUTION / 2 - ((digimon->getNumberOfPoops() + 1) / 2) * poopWidth);
   if (digimonX < minAllowedX) digimonX = minAllowedX;
   if (digimonX > maxAllowedX) digimonX = maxAllowedX;
 

@@ -82,8 +82,9 @@ This project implements **Version 1** rules only.
   or cancellation. Winning restores strength without counting the session again.
 - Hunger and strength each lose one internal point per `feedTimeSec` while
   awake (currently **600 seconds**, configurable in `DIGIMON_DATA`). Sleep
-  pauses depletion, without filling already-empty hearts. Poop is capped at
-  four piles and causes no care mistakes.
+  pauses depletion, without filling already-empty hearts. Poop accumulates up to
+  eight piles; reaching eight without cleaning causes sickness, not an extra
+  care mistake. Cleaning resets the pile count; use Cure to treat sickness.
 
 The species initializers previously omitted `feedTimeSec`, shifting the fields
 that followed it; those rows now explicitly contain 600. Mamemon's invalid

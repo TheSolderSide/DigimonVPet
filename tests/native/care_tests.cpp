@@ -95,7 +95,7 @@ void feedingAndDecay() {
     decay.loop(20 * minute - 1); assert(decay.getCareMistakes() == 0);
     decay.loop(1); assert(decay.getCareMistakes() == 1);
     decay.loop(4 * 60 * minute); assert(decay.getCareMistakes() == 1);
-    assert(decay.getNumberOfPoops() <= 4);
+    assert(decay.getNumberOfPoops() <= 8);
 
     auto sleeping = pet(); sleeping.setHunger(0); sleeping.applyLights(false);
     sleeping.loop(20 * minute);
@@ -203,7 +203,30 @@ void curing() {
     assert(d.cure() && d.getState() == STATE_ASLEEP);
 }
 
+void poopSickness() {
+    auto d = pet();
+    const unsigned long interval = d.getProperties()->poopTimeSec * 1000UL;
+    d.loop(7 * interval);
+    assert(d.getNumberOfPoops() == 7 && d.getState() == STATE_AWAKE);
+    d.loop(interval);
+    assert(d.getNumberOfPoops() == 8 && d.getState() == STATE_SICK);
+    const auto mistakes = d.getCareMistakes();
+    d.loop(interval);
+    assert(d.getNumberOfPoops() == 8 && d.getCareMistakes() == mistakes);
+    d.setNumberOfPoops(0);
+    assert(d.getState() == STATE_SICK); // Cleaning does not replace medicine.
+    assert(d.cure());
+    d.loop(7 * interval);
+    assert(d.getNumberOfPoops() == 7 && d.getState() != STATE_SICK);
+    d.setNumberOfPoops(0);
+    d.loop(interval);
+    assert(d.getNumberOfPoops() == 1 && d.getState() != STATE_SICK);
+    auto delayed = pet();
+    delayed.loop(9 * interval);
+    assert(delayed.getNumberOfPoops() == 8 && delayed.getState() == STATE_SICK);
+}
+
 int main() {
-    curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
+    poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
     std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
 }
