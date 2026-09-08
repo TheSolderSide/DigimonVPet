@@ -101,7 +101,7 @@ void Digimon::applyLights(bool on) {
     if (state == STATE_EGG || state == STATE_DEAD) return;
     lightsOn = on;
     forcedAsleep = !on;
-    state = on ? (inBedtime ? STATE_TIRED : STATE_AWAKE) : STATE_ASLEEP;
+    if (state != STATE_SICK) state = on ? (inBedtime ? STATE_TIRED : STATE_AWAKE) : STATE_ASLEEP;
     // A deliberate wake stays awake until lights OFF or the next night's bedtime.
     if (care.wasInSleepWindow) care.bedtimeHandled = true;
     updateCare(0);
@@ -155,7 +155,7 @@ void Digimon::updateTimers(unsigned long delta) {
     const unsigned long poopInterval = properties->poopTimeSec * 1000UL;
     if (poopInterval && poopTimer >= poopInterval) {
         const unsigned long piles = poopTimer / poopInterval;
-        const bool reachedSicknessThreshold = numberOfPoops < 8 && numberOfPoops + piles >= 8;
+        const bool reachedSicknessThreshold = numberOfPoops + piles >= 8;
         numberOfPoops = numberOfPoops + piles > 8 ? 8 : numberOfPoops + piles;
         if (reachedSicknessThreshold) state = STATE_SICK;
         weight = piles > weight ? 0 : weight - piles;

@@ -16,7 +16,7 @@
 
 
 
-#define N_SPRITES_SYMBOL 27
+#define N_SPRITES_SYMBOL 28
 #define N_SPRITES_DIGIMON 12
 
 
@@ -49,6 +49,7 @@
 #define SYMBOL_INJURED_BLACK 24
 #define SYMBOL_INJURED_WHITE 25
 #define SYMBOL_SLEEPING 26
+#define SYMBOL_SICK_PLUS 27
 
 
 
@@ -340,7 +341,18 @@ const byte SYMBOLS[N_SPRITES_SYMBOL][SPRITES_SYMBOL_RESOLUTION] PROGMEM = {
     0b00000000,
     0b10000000,
     0b00000000,
+  },
+  { // Small medical plus, padded to the standard 8x8 symbol size.
+    0b00000000,
+    0b00011000,
+    0b00011000,
+    0b01111110,
+    0b01111110,
+    0b00011000,
+    0b00011000,
+    0b00000000,
   }
+
 
 
 };

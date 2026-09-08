@@ -65,7 +65,7 @@ void V20::DigimonWatchingScreen::loop(long delta) {
 }
 
 void V20::DigimonWatchingScreen::calculateWalking() {
-  bool isTired = (digimon->getState() == STATE_TIRED);
+  bool isTired = (digimon->getState() == STATE_TIRED || digimon->getState() == STATE_SICK);
   bool isAsleep = (digimon->getState() == STATE_ASLEEP);
   bool isEgg = (digimon->getState() == STATE_EGG);
 
@@ -216,9 +216,19 @@ void V20::DigimonWatchingScreen::draw(VPetLCD* lcd) {
     if(symbolX < 0) symbolX = 0;
     if(symbolY < 0) symbolY = 0;
     lcd->drawSymbol(SYMBOL_SLEEPING, symbolX, symbolY, false, pixelColor);
-  } else if(digimon->getState() == STATE_TIRED) {
+  } else if(digimon->getState() == STATE_TIRED || digimon->getState() == STATE_SICK) {
     const unsigned short* sprite = spriteManager->getDigimonSprite(digimon->getDigimonIndex(), SPRITE_DIGIMON_TIRED);
     lcd->draw16BitArray(sprite, screenX + digimonX, screenY + digimonY, !looksLeft, pixelColor);
+    if (digimon->getState() == STATE_SICK) {
+      // Pick the side with space so the plus remains visible near either edge.
+      int plusX = screenX + digimonX + SPRITES_DIGIMON_RESOLUTION + 1;
+      const int rightEdge = screenX + maxX;
+      if (plusX + SPRITES_SYMBOL_RESOLUTION > rightEdge)
+        plusX = screenX + digimonX - SPRITES_SYMBOL_RESOLUTION - 1;
+      plusX = max(0, min(plusX, rightEdge - SPRITES_SYMBOL_RESOLUTION));
+      const int plusY = screenY + 1 + poopAnimationCounter;
+      lcd->drawSymbol(SYMBOL_SICK_PLUS, plusX, plusY, false, pixelColor);
+    }
   } else {
     drawWakedUp(lcd);
   }

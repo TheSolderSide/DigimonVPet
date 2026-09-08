@@ -247,7 +247,19 @@ void bootSaveHandling() {
     assert(EEPROM.bytes[255] == 0xFF);
 }
 
+void sicknessPersists() {
+    auto d = pet();
+    d.setNumberOfPoops(8); // Includes an existing save already at the cap.
+    d.loop(d.getProperties()->poopTimeSec * 1000UL);
+    assert(d.getState() == STATE_SICK);
+    d.applyLights(false); assert(d.getState() == STATE_SICK);
+    d.applyLights(true); assert(d.getState() == STATE_SICK);
+    d.updateSleepSchedule(19, 0); assert(d.getState() == STATE_SICK);
+    d.setNumberOfPoops(0); assert(d.getState() == STATE_SICK);
+    assert(d.cure());
+}
+
 int main() {
-    bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
+    sicknessPersists(); bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
     std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
 }
