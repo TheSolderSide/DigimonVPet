@@ -69,9 +69,18 @@ void V20::DigimonWatchingScreen::calculateWalking() {
   bool isAsleep = (digimon->getState() == STATE_ASLEEP);
   bool isEgg = (digimon->getState() == STATE_EGG);
 
-  // change facing only when not asleep
-  if (!isEgg && !isAsleep && (randomDecision(probabilityChangeDirection) || digimonX < minX || digimonX > maxX - digimon->getNumberOfPoops() * poopWidth)) {
-    looksLeft = !looksLeft;
+  // maxX is the play area's right edge, not the sprite's left edge.
+  // Keep at least half of the 16-pixel sprite visible at either side.
+  const int minAllowedX = max((int)minX, -SPRITES_DIGIMON_RESOLUTION / 2);
+  const int maxAllowedX = max(minAllowedX,
+      maxX - SPRITES_DIGIMON_RESOLUTION / 2 - digimon->getNumberOfPoops() * poopWidth);
+  if (digimonX < minAllowedX) digimonX = minAllowedX;
+  if (digimonX > maxAllowedX) digimonX = maxAllowedX;
+
+  if (!isEgg && !isAsleep) {
+    if (digimonX <= minAllowedX) looksLeft = false;
+    else if (digimonX >= maxAllowedX) looksLeft = true;
+    else if (randomDecision(probabilityChangeDirection)) looksLeft = !looksLeft;
   }
 
   if (isAsleep && (randomDecision(probabilityChangeDirection) || digimonY < minY || digimonY > maxY)) {
@@ -115,27 +124,9 @@ void V20::DigimonWatchingScreen::calculateWalking() {
     }
   }
 
-  if(!isEgg && !isAsleep){
-    if (looksLeft) {
-      if (digimonX > minX + 1) {
-        digimonX--;
-      }
-      else {
-        looksLeft = !looksLeft;
-        if (digimonX < maxX - 1 - digimon->getNumberOfPoops() * poopWidth)
-          digimonX++;
-      }
-    }
-    else {
-      if (digimonX < maxX - 1 - digimon->getNumberOfPoops() * poopWidth) {
-        digimonX++;
-      }
-      else {
-        looksLeft = !looksLeft;
-        if (digimonX > minX + 1)
-          digimonX--;
-      }
-    }
+  if (!isEgg && !isAsleep) {
+    if (looksLeft && digimonX > minAllowedX) --digimonX;
+    else if (!looksLeft && digimonX < maxAllowedX) ++digimonX;
   }
 
   //with probability of 5% make some other moves (skip when tired/asleep)
@@ -144,8 +135,7 @@ void V20::DigimonWatchingScreen::calculateWalking() {
   }
 
   // Enforce boundaries to avoid walking off the screen
-  int maxAllowedX = maxX - 1 - digimon->getNumberOfPoops() * poopWidth;
-  if(digimonX < minX) digimonX = minX;
+  if(digimonX < minAllowedX) digimonX = minAllowedX;
   if(digimonX > maxAllowedX) digimonX = maxAllowedX;
   if(digimonY < minY) digimonY = minY;
   if(digimonY > maxY) digimonY = maxY;

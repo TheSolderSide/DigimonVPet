@@ -30,10 +30,10 @@ namespace V20{
       uint8_t probabilityMakeAnotherMove;
       uint8_t probabilityChangeWalkingSprite;
       
-      uint8_t currentWalkSprite;
+      uint8_t currentWalkSprite = SPRITE_DIGIMON_WALK_0;
 
       //Poop drawing stuff
-      uint8_t numberOfPoopWhileFlushing; //theAmount of poop on the screen While Flushing Needed because read above
+      uint8_t numberOfPoopWhileFlushing = 0; //theAmount of poop on the screen While Flushing Needed because read above
       uint8_t poopWidth = SPRITES_SYMBOL_RESOLUTION; //the width of poop in pixel
       uint8_t poopAnimationCounter;
       uint8_t poopOffsetY=0; // the offset when flushing
