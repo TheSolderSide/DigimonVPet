@@ -23,12 +23,12 @@
 #include "VPetLCD/Screens/TrainingScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/TrainingAnimationScreen.h"
 
-
 #include "GameLogic/ScreenStateMachine.h"
 
 #include "GameLogic/Digimon.h"
 #include "GameLogic/EvolutionHandler.h"
 #include "SaveGame/SaveGameHandler.h"
+#include "SoundManager/SoundManager.h"
 
 
 uint16_t digiIndex =DIGIMON_EGG;
@@ -49,6 +49,13 @@ SaveGameHandler savegame;
 #define ADC_PIN 34
 #define BUTTON_1 35
 #define BUTTON_2 0
+
+// External passive piezo buzzer. Override with -D BUZZER_PIN=<gpio>.
+#ifndef BUZZER_PIN
+#define BUZZER_PIN 25
+#endif
+
+SoundManager soundManager(BUZZER_PIN);
 
 Button2 btn1(BUTTON_1);
 Button2 btn2(BUTTON_2);
@@ -315,6 +322,16 @@ void stateMachineInit() {
     trainingAnimationAttack.chooseShieldBottom();
   });
 
+  // Play the result once, alongside the happy/angry animation in either mode.
+  auto playTrainingResult = [](bool won) {
+    Serial.println(won ? "Training result: WIN, requesting happy sound"
+                       : "Training result: LOSS, requesting alert sound");
+    if (won) soundManager.playHappy();
+    else soundManager.playAlert();
+  };
+  trainingAnimationDefend.setResultCallback(playTrainingResult);
+  trainingAnimationAttack.setResultCallback(playTrainingResult);
+
   // return to trainingSelection automatically when animation ends
   trainingAnimationDefend.setEndCallback([](){
     stateMachine.setCurrentScreen(trainingSelectionId);
@@ -459,11 +476,13 @@ void button_init()
     });
 
   btn1.setPressedHandler([](Button2& b) {
+    soundManager.playBeep();
     stateMachine.sendSignal(nextSignal);
     buttonPressed = true;
     });
 
   btn2.setPressedHandler([](Button2& b) {
+    soundManager.playBeep();
     Serial.println("Button2 pressed: confirm handler");
     // if display is forced black, either forward the confirm to the state machine
     // when sleeping animation is active (so the user can select lights), or wake directly
@@ -570,6 +589,9 @@ void setup(void)
 {
   Serial.begin(115200);
   Serial.println("Start");
+  if (!soundManager.begin()) {
+    Serial.println("Buzzer initialization failed");
+  }
 
   pinMode(ADC_EN, OUTPUT);
   digitalWrite(ADC_EN, HIGH);
@@ -637,6 +659,7 @@ boolean debug=false;
 
 void loop()
 {
+  soundManager.update();
   //tft.fillScreen(0x86CE);
   unsigned long t1 = millis();
 
@@ -790,6 +813,17 @@ void loop()
 
   btn1.loop();
   btn2.loop();
+
+  // Alert once per hungry episode; feeding to 2 or more rearms the alert.
+  // Wait for other sounds to finish so hunger cannot interrupt training results.
+  static bool hungerAlertPlayed = false;
+  const bool isHungry = digimon.getState() != STATE_EGG && digimon.getHunger() < 2;
+  if (!isHungry) {
+    hungerAlertPlayed = false;
+  } else if (!hungerAlertPlayed && !soundManager.isPlaying()) {
+    soundManager.playAlert();
+    hungerAlertPlayed = true;
+  }
 
   unsigned long t2 = millis();
   lastDelta = t2 - t1;

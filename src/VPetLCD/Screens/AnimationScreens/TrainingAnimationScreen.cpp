@@ -77,6 +77,8 @@ void TrainingAnimationScreen::loop(unsigned long delta){
         if(stageTimer > (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
             // end of this round
             currentRound++;
+            Serial.printf("Training: round %u/%u complete, successes=%u\n",
+                          currentRound, rounds, blockedCount);
             if(currentRound >= rounds){
                 // finished
                 if(blockedCount > (rounds/2)){
@@ -92,6 +94,7 @@ void TrainingAnimationScreen::loop(unsigned long delta){
                     stageTimer = 0;
                 }
                 // do not call endCallback here; wait until end animation has been shown
+                if(resultCallback) resultCallback(stage == 2);
             } else {
                 // next round
                 playerChoicePos = -1;

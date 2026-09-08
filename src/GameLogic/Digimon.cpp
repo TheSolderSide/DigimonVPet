@@ -46,16 +46,12 @@ void Digimon::updateTimers(unsigned long delta){
         feedTimer = 0;
         uint8_t hunger = getHunger();
 
-        if(hunger < 0){
+        if(hunger > 0){
             reduceHunger(1);
         }
 
-        if(hunger < 2){
-            //send a warning some how
-        }
-
         //if hunger at min and still not fed increase care mistakes
-        if(hunger == 0){           
+        if(getHunger() == 0){
             careMistakes++;
         }
     }

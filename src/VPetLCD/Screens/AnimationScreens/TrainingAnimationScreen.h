@@ -26,6 +26,8 @@ class TrainingAnimationScreen : public VPetLCD::Screen {
 
     // callback when game ends
     std::function<void(void)> endCallback;
+    // Fired once when the final result animation starts (true = win).
+    std::function<void(bool)> resultCallback;
 
   public:
     TrainingAnimationScreen(AbstractSpriteManager* _spriteManager, uint16_t _digimonSpriteIndex, Digimon* _digimon, uint8_t _mode=MODE_DEFEND);
@@ -36,4 +38,5 @@ class TrainingAnimationScreen : public VPetLCD::Screen {
     void draw(VPetLCD* lcd) override;
     void setDigimonSpriteIndex(uint16_t _idx){ digimonSpriteIndex = _idx; };
     void setEndCallback(std::function<void(void)> cb){ endCallback = cb; };
+    void setResultCallback(std::function<void(bool)> cb){ resultCallback = cb; };
 };

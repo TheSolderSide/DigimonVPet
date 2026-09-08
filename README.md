@@ -20,7 +20,37 @@ Customizable:
 - it should be easy to add new digimon/pets/evolution lines
 - it should be easy to change game mechanics and the UI
 
-# How to install 
+# How to install
+## Sounds
+
+Connect an external low-current passive piezo buzzer to GPIO 25 and GND
+(use a suitable driver circuit for a speaker or higher-current buzzer).
+A passive buzzer is needed to reproduce the different pitches.
+Change `BUZZER_PIN` in `src/main.cpp`, or add `-D BUZZER_PIN=25` to
+PlatformIO `build_flags`, to match your wiring.
+
+The sound manager is initialized in `setup()` and updated in `loop()`.
+Both buttons already beep when pressed. Call these functions from game events:
+
+```cpp
+soundManager.playBeep();  // Sound 1: short button beep
+soundManager.playAlert(); // Sound 2: alternating alert / angry tones
+soundManager.playHappy(); // Sound 3: rising celebration melody
+```
+
+You can also use `soundManager.play(SoundManager::Sound::Alert)`.
+Both training modes play the happy sound for a final win and the alert sound
+for a final loss, as their result animation starts. A non-egg pet also plays
+the alert once when hunger is below 2. Feeding it back to 2 or more allows
+another alert the next time it becomes hungry. Hunger alerts wait until
+any current sound finishes.
+Playback uses PWM without delays; keep calling `update()` regularly for note timing.
+Alerts and celebrations replace the current sound; button beeps do not interrupt them.
+Call `stop()` to silence playback, or `setEnabled(false)` to mute and
+`setEnabled(true)` to unmute. Calls before `begin()` are safely ignored.
+The default LEDC channel is 2; reserve it and its paired channel 3 for sound
+on the original ESP32, since they share a PWM timer.
+
 ## on ESP32 (TTGO T-Display)
 Clone the Repo into VSCode/PlatformIO and just flash it to your device. Don't forget to configure your TFT_eSPI library properly (uncommenting/commenting the right line in user_setup_select.h). If you want to use Arduino IDE: the content of main.cpp is equal to arduinos *.ino files. 
 
