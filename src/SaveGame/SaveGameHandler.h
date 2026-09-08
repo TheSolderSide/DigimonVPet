@@ -15,11 +15,11 @@
 #define ADDRESS_NUMBEROFPOOPS 13//1byte
 #define ADDRESS_HUNGER 14//1byte
 #define ADDRESS_STRENGTH 15//1byte
-#define ADDRESS_EFFORT 16//1byte
+// Byte 16 was effort; reserved to preserve existing saves.
 #define ADDRESS_POOPTIMER 17//4byte
 #define ADDRESS_AGETIMER 21//4byte
 #define ADDRESS_EVOLUTIONETIMER 25 //4byte
-#define ADDRESS_DIGIMONPOWER 26 //1byte
+#define ADDRESS_ENERGY 26 //1byte
 #define FEED_TIMER 27 //4byte
 // flags
 #define ADDRESS_LIGHTS 31 //1byte

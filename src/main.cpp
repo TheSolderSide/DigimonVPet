@@ -93,8 +93,7 @@ V20::DigimonNameScreen digiNameScreen(&spriteManager, dataLoader.getDigimonPrope
 V20::AgeWeightScreen ageWeightScreen(5, 21);
 V20::HeartsScreen hungryScreen("Hungry", digimon.getHungerHearts(), 4);
 V20::HeartsScreen strengthScreen("Str", digimon.getStrengthHearts(), 4);
-V20::HeartsScreen effortScreen("Effort", digimon.getEffortHearts(), 4);
-V20::ProgressBarScreen dpScreen("DP", 30, digimon.getDigimonPower());
+V20::ProgressBarScreen energyScreen("Energy", 30, digimon.getEnergy());
 V20::PercentageScreen sPercentageScreen("WIN", 'S', 100);
 V20::PercentageScreen tPercentageScreen("WIN", 'T', 93);
 V20::SelectionScreen foodSelection(true);
@@ -109,8 +108,8 @@ V20::TrainingScreen trainingSelection;
 TrainingAnimationScreen trainingAnimationDefend(&spriteManager, digimon.getDigimonIndex(), &digimon);
 TrainingAnimationScreen trainingAnimationAttack(&spriteManager, digimon.getDigimonIndex(), &digimon, 1);
 
-//20 screens and 3 signals (next, confirm and back)
-uint8_t numberOfScreens = 20;
+//19 screens and 3 signals (next, confirm and back)
+uint8_t numberOfScreens = 19;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -126,8 +125,7 @@ uint8_t digiNameScreenId = stateMachine.addScreen(&digiNameScreen);
 uint8_t ageWeightScreenId = stateMachine.addScreen(&ageWeightScreen);
 uint8_t hungryScreenId = stateMachine.addScreen(&hungryScreen);
 uint8_t strengthScreenId = stateMachine.addScreen(&strengthScreen);
-uint8_t effortScreenId = stateMachine.addScreen(&effortScreen);
-uint8_t dpScreenId = stateMachine.addScreen(&dpScreen);
+uint8_t energyScreenId = stateMachine.addScreen(&energyScreen);
 uint8_t sPercentageScreenId = stateMachine.addScreen(&sPercentageScreen);
 uint8_t tPercentageScreenId = stateMachine.addScreen(&tPercentageScreen);
 uint8_t foodSelectionId = stateMachine.addScreen(&foodSelection);
@@ -170,9 +168,8 @@ void stateMachineInit() {
   stateMachine.addTransition(digiNameScreenId, ageWeightScreenId, nextSignal);
   stateMachine.addTransition(ageWeightScreenId, hungryScreenId, nextSignal);
   stateMachine.addTransition(hungryScreenId, strengthScreenId, nextSignal);
-  stateMachine.addTransition(strengthScreenId, effortScreenId, nextSignal);
-  stateMachine.addTransition(effortScreenId, dpScreenId, nextSignal);
-  stateMachine.addTransition(dpScreenId, sPercentageScreenId, nextSignal);
+  stateMachine.addTransition(strengthScreenId, energyScreenId, nextSignal);
+  stateMachine.addTransition(energyScreenId, sPercentageScreenId, nextSignal);
   stateMachine.addTransition(sPercentageScreenId, tPercentageScreenId, nextSignal);
   stateMachine.addTransition(tPercentageScreenId, digiNameScreenId, nextSignal);
 
@@ -208,13 +205,8 @@ void stateMachineInit() {
       digiNameScreen.setDigimonName(digimon.getProperties()->digiName);
       hungryScreen.setHearts(digimon.getHungerHearts());
       strengthScreen.setHearts(digimon.getStrengthHearts());
-      effortScreen.setHearts(digimon.getEffortHearts());
 
-      dpScreen.setFillPercentage((digimon.getDigimonPower()));
-      // if(maxdp > 0){
-      // }else{
-      //   dpScreen.setFillPercentage(0);
-      // }
+      energyScreen.setFillPercentage(digimon.getEnergyPercentage());
       ageWeightScreen.setAge(digimon.getAge());
       ageWeightScreen.setWeight(digimon.getWeight());
       stateMachine.setCurrentScreen(digiNameScreenId);
@@ -482,10 +474,9 @@ void setupScreens()
 
   //set offset of the screens
   ageWeightScreen.setPos(screensOffsetX, 0);
-  effortScreen.setPos(screensOffsetX, 0);
   strengthScreen.setPos(screensOffsetX, 0);
   hungryScreen.setPos(screensOffsetX, 0);
-  dpScreen.setPos(screensOffsetX, 0);
+  energyScreen.setPos(screensOffsetX, 0);
   sPercentageScreen.setPos(screensOffsetX, 0);
   tPercentageScreen.setPos(screensOffsetX, 0);
   clockScreen.setPos(screensOffsetX, 0);
@@ -631,6 +622,11 @@ void loop()
   const uint8_t currentScreenId = stateMachine.getCurrentScreenId();
   screen.setForceBlackScreen(!digimon.isLightsOn() &&
       (currentScreenId == digimonScreenId || currentScreenId == sleepingAnimationScreenId));
+  hungryScreen.setHearts(digimon.getHungerHearts());
+  strengthScreen.setHearts(digimon.getStrengthHearts());
+  ageWeightScreen.setAge(digimon.getAge());
+  ageWeightScreen.setWeight(digimon.getWeight());
+  energyScreen.setFillPercentage(digimon.getEnergyPercentage());
   screen.setCallActive(digimon.isCallActive());
   screen.renderScreen(stateMachine.getCurrentScreen());
   
@@ -650,6 +646,7 @@ void loop()
     trainingAnimationDefend.setDigimonSpriteIndex(digimon.getDigimonIndex());
     trainingAnimationAttack.setDigimonSpriteIndex(digimon.getDigimonIndex());
     digiNameScreen.setDigimonSpriteIndex(digimon.getDigimonIndex());
+    savegame.saveDigimon(&digimon);
   }
   else{   
       // update internal clock and handle sleep/wake transitions once per second

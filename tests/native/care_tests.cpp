@@ -84,6 +84,7 @@ void feedingAndDecay() {
     while (d.feedMeal()) {}
     assert(d.getOverfeedCounter() == 2);
     d.addStrength(100); assert(d.getStrengthHearts() == 4);
+    d.setEnergy(d.getProperties()->maxEnergy);
     assert(!d.feedProtein());
     d.loseStrength(100); assert(d.getStrength() == 0);
 
@@ -259,7 +260,65 @@ void sicknessPersists() {
     assert(d.cure());
 }
 
+void sleepEnergy() {
+    auto d = pet();
+    d.setEnergy(255); assert(d.getEnergy() == d.getProperties()->maxEnergy);
+    assert(d.spendEnergy(5));
+    const auto remaining = d.getEnergy();
+    assert(!d.spendEnergy(255) && d.getEnergy() == remaining);
+    d.setEnergy(0);
+    d.updateSleepSchedule(18, 30); d.applyLights(false);
+    d.updateSleepSchedule(19, 0);
+    d.loop(13 * 60 * minute);
+    d.updateSleepSchedule(8, 0);
+    assert(d.getEnergy() == d.getProperties()->maxEnergy && d.getEnergyPercentage() == 100);
+    auto interrupted = pet();
+    interrupted.applyLights(false); interrupted.updateSleepSchedule(19, 0);
+    interrupted.loop(6 * 60 * minute); interrupted.disturbSleep();
+    interrupted.applyLights(false); interrupted.loop(7 * 60 * minute);
+    interrupted.updateSleepSchedule(8, 0); assert(interrupted.getEnergy() == 0);
+    auto clockJump = pet();
+    clockJump.applyLights(false); clockJump.updateSleepSchedule(19, 0);
+    clockJump.updateSleepSchedule(8, 0, true); assert(clockJump.getEnergy() == 0);
+    auto late = pet(); late.updateSleepSchedule(19, 0); late.applyLights(false);
+    late.loop(13 * 60 * minute); late.updateSleepSchedule(8, 0);
+    assert(late.getEnergy() == 0);
+    auto awake = pet(); awake.setStrength(0); awake.feedProtein();
+    awake.beginTraining(); awake.finishTraining(true); assert(awake.getEnergy() == 12);
+    awake.setEnergy(19); awake.addEnergy(255); assert(awake.getEnergy() == 20);
+    awake.setEnergy(19); awake.setStrength(10); assert(awake.feedProtein());
+    assert(awake.getEnergy() == 20 && awake.getStrength() == 10);
+    assert(!awake.feedProtein());
+    awake.setEnergy(19); awake.finishTraining(true); assert(awake.getEnergy() == 20);
+    awake.setEnergy(5); awake.finishTraining(false); assert(awake.getEnergy() == 5);
+    d.setEnergy(7); SaveGameHandler saves; saves.saveDigimon(&d);
+    auto restored = pet(); assert(saves.loadDigimon(&restored)); assert(restored.getEnergy() == 7);
+}
+
+void weightAndEnergyRestore() {
+    for (const auto species : {DIGIMON_BOTAMON, DIGIMON_KOROMON}) {
+        auto baby = pet(); baby.setDigimonIndex(species); baby.setProperties(&DIGIMON_DATA[species]);
+        baby.setStrength(0); assert(baby.feedProtein());
+        assert(baby.getEnergy() == 2 && baby.getEnergyPercentage() == 10);
+        baby.finishTraining(true); assert(baby.getEnergy() == 12);
+        baby.finishTraining(true); assert(baby.getEnergy() == 20);
+        SaveGameHandler save; save.saveDigimon(&baby);
+        auto restored = pet(); assert(save.loadDigimon(&restored));
+        assert(restored.getEnergy() == 20 && restored.getDigimonIndex() == species);
+    }
+    auto d = pet();
+    d.setWeight(1); assert(d.getWeight() == d.getProperties()->minWeight);
+    d.loseWeight(100); assert(d.getWeight() == d.getProperties()->minWeight);
+    d.setWeight(37); d.setEnergy(12);
+    SaveGameHandler saves; saves.saveDigimon(&d);
+    auto loaded = pet(); assert(saves.loadDigimon(&loaded));
+    assert(loaded.getWeight() == 37 && loaded.getEnergy() == 12);
+    const auto interval = loaded.getProperties()->poopTimeSec * 1000UL;
+    loaded.setWeight(loaded.getProperties()->minWeight);
+    loaded.loop(interval); assert(loaded.getWeight() == loaded.getProperties()->minWeight);
+}
+
 int main() {
-    sicknessPersists(); bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
+    weightAndEnergyRestore(); sleepEnergy(); sicknessPersists(); bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
     std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
 }

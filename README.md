@@ -124,3 +124,20 @@ python tests/native/run.py
 Build the device firmware with `platformio run`. On hardware, check the call
 bell and buzzer, FULL refusal, five-round training/cancel, sleeping menu actions,
 and the automatic wake at the species' configured time.
+
+
+### Energy
+
+Effort stars have been removed. DP is now named Energy throughout the game.
+The Energy bar displays the current amount as a percentage of the species'
+`maxEnergy`. Existing saves retain their stored DP value as energy.
+
+An uninterrupted, lights-off sleep covering the entire `sleepHour` to
+`wakeUpHour` interval restores energy to the species maximum at wake-up.
+Turn the lights off before bedtime to qualify. Interrupted sleep, late lights
+out, naps and clock changes do not refill energy. Night qualification is
+tracked while powered on; rebooting breaks the uninterrupted-night check.
+Vitamins add 2 energy and successful training adds 10, capped at `maxEnergy`.
+Vitamins can be taken at full strength if energy still needs replenishing. Future battles can use
+`spendEnergy(cost)`, which refuses a cost above the available energy without
+changing it. No battle costs are applied until battles are implemented.

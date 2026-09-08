@@ -63,7 +63,7 @@ struct DigimonProperties {
     uint8_t stage; //baby rookie adult etc.
     uint16_t minWeight;
     uint8_t stomachCapacity;
-    uint8_t maxDigimonPower;
+    uint8_t maxEnergy;
 
     uint8_t sleepHour;//at what time the digimon begins sleeping (0-23)
     uint8_t wakeUpHour;//at what time the digimon wakes up(0-23)
@@ -77,8 +77,8 @@ struct DigimonProperties {
 
 const DigimonProperties DIGIMON_DATA[N_DIGIMON] PROGMEM = {
     {"Egg",STAGE_EGG,0,0,0,0,0,POOP_FREQUENCY_ULTIMATE,EVOLUTION_TIME_EGG ,600,TYPE_DATA,0x03,1},
-    {"Botamon",STAGE_BABY1,5 ,4 ,0 ,19,8,POOP_FREQUENCY_BABY1,EVOLUTION_TIME_BABY1 ,600,TYPE_DATA,0x03,1},
-    {"Koromon",STAGE_BABY2,10,16,0 ,19,8,POOP_FREQUENCY_BABY2,EVOLUTION_TIME_BABY2,600,TYPE_DATA,0x03,1},
+    {"Botamon",STAGE_BABY1,5 ,4 ,20,19,8,POOP_FREQUENCY_BABY1,EVOLUTION_TIME_BABY1 ,600,TYPE_DATA,0x03,1},
+    {"Koromon",STAGE_BABY2,10,16,20,19,8,POOP_FREQUENCY_BABY2,EVOLUTION_TIME_BABY2,600,TYPE_DATA,0x03,1},
     {"Agumon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,600,TYPE_DATA,0x03,0},
     {"Betamon",STAGE_ROOKIE,20,24,20,19,8,POOP_FREQUENCY_ROOKIE,EVOLUTION_TIME_ROOKIE,600,TYPE_VACCINE,0x03,0},
     {"Greymon",STAGE_ADULT,30,28,30,19,8,POOP_FREQUENCY_ADULT,EVOLUTION_TIME_ADULT,600,TYPE_DATA,0x03,0},
@@ -126,8 +126,7 @@ class Digimon{
         uint8_t numberOfPoops = 0;
         uint8_t hunger = 0;
         uint8_t strength = 0;
-        uint8_t effort = 0;
-        uint8_t digimonPower = 0; //dp
+        uint8_t energy = 0; // available battle energy
         uint8_t overfeedCounter = 0;
         uint8_t sleepDisturbancesCounter = 0;
         uint8_t sicknessCounter = 0;
@@ -155,6 +154,8 @@ class Digimon{
         CareTrackingState care;
         bool callAlertPending = false;
         bool inBedtime = false;
+        bool fullNightCandidate = false;
+        uint32_t nightSleepMs = 0;
         void updateTimers(unsigned long delta);
         bool needsCare();
         static uint8_t clampStat(int value) { return value < 0 ? 0 : (value > 10 ? 10 : value); }
@@ -167,11 +168,11 @@ class Digimon{
         boolean isEvolved(){return evolved;};
 
         //setters
-        void setProperties(const DigimonProperties* _properties){properties=_properties;};
+        void setProperties(const DigimonProperties* value){properties=value; setWeight(weight); setEnergy(energy);}
         void setDigimonIndex(uint16_t _digimonIndex){digimonIndex=_digimonIndex;};
         void setState(uint8_t _state){state=_state;}; 
         void setAge(uint16_t _age){age=_age;};
-        void setWeight(uint16_t _weight){weight=_weight;};
+        void setWeight(uint16_t value){weight = properties && value < properties->minWeight ? properties->minWeight : value;}
         void setFeedCounter( uint16_t _feedCounter){feedCounter=_feedCounter;};
         void setCareMistakes(uint16_t _careMistakes){careMistakes=_careMistakes;};
         void setTrainingCounter( uint16_t _trainingCounter){trainingCounter=_trainingCounter;};
@@ -182,8 +183,7 @@ class Digimon{
         void setNumberOfPoops(uint8_t _numberOfPoops){numberOfPoops=_numberOfPoops;};
         void setHunger(uint8_t value){hunger = value > getFoodCapacity() ? getFoodCapacity() : value;};
         void setStrength(uint8_t _strength){strength=clampStat(_strength);};
-        void setEffort(uint8_t _effort){effort=_effort;};
-        void setDigimonPower(uint8_t _digimonPower){digimonPower=_digimonPower;};
+        void setEnergy(uint8_t value){energy = properties && value > properties->maxEnergy ? properties->maxEnergy : value;}
         void setOverfeedCounter(uint8_t _overfeedCounter){overfeedCounter=_overfeedCounter;};
         void setSleepDisturbancesCounter(uint8_t _sleepDisturbancesCounter){sleepDisturbancesCounter=_sleepDisturbancesCounter;};
         void setSicknessCounter(uint8_t _sicknessCounter){sicknessCounter=_sicknessCounter;};
@@ -205,11 +205,9 @@ class Digimon{
         uint8_t getNumberOfPoops(){return numberOfPoops;};
         uint8_t getHunger(){return hunger;};
         uint8_t getStrength(){return strength;};
-        uint8_t getEffort(){return effort;};
-        uint8_t getDigimonPower(){return digimonPower;};
+        uint8_t getEnergy(){return energy;};
         uint8_t getHungerHearts(){return std::round(4.0 * (hunger > 10 ? 10 : hunger) / 10.0);};
         uint8_t getStrengthHearts(){return std::round(4.0 * getStrength() / 10.0);};
-        uint8_t getEffortHearts(){return std::round(4.0 * getEffort() / 10.0);};
         uint8_t getOverfeedCounter(){return overfeedCounter;};
         uint8_t getSleepDisturbancesCounter(){return sleepDisturbancesCounter;};
         uint8_t getSicknessCounter(){return sicknessCounter;};
@@ -223,7 +221,7 @@ class Digimon{
         }
         void increaseHunger(int8_t amount){ reduceHunger(-amount); }
         void addWeight(int8_t w){weight += w;}
-        void loseWeight(int8_t w){weight = weight > w ? weight - w : 0;}
+        void loseWeight(int8_t w){if (w > 0) setWeight(weight > w ? weight - w : 0);}
         void addStrength(int8_t s){strength = clampStat((int)strength + s);}
         void loseStrength(int8_t s){addStrength(-s);}
 
@@ -243,7 +241,16 @@ class Digimon{
         void restoreCareTrackingState(const CareTrackingState& value){ care = value; }
         void setFeedTimer(unsigned long value){ feedTimer = value; }
 
-        void addDigimonPower(int8_t dp){digimonPower+=dp;};
+        uint8_t getEnergyPercentage(){ return properties && properties->maxEnergy ? 100U * energy / properties->maxEnergy : 0; }
+        void addEnergy(uint8_t amount){
+            const unsigned int total = (unsigned int)energy + amount;
+            energy = properties ? (total > properties->maxEnergy ? properties->maxEnergy : total) : 0;
+        }
+        bool spendEnergy(uint8_t cost){
+            if (cost > energy) return false;
+            energy -= cost;
+            return true;
+        }
 
         //sleep / lights control
         void setLightsOn(bool v){lightsOn = v;};

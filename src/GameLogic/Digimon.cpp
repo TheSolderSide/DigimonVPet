@@ -64,10 +64,11 @@ bool Digimon::feedMeal() {
 }
 
 bool Digimon::feedProtein() {
-    if (state == STATE_EGG || state == STATE_DEAD || state == STATE_ASLEEP || strength >= 10) return false;
+    if (state == STATE_EGG || state == STATE_DEAD || state == STATE_ASLEEP ||
+        (strength >= 10 && (!properties || energy >= properties->maxEnergy))) return false;
     addStrength(2);
+    addEnergy(2);
     addWeight(2);
-    addDigimonPower(2);
     updateCare(0);
     return true;
 }
@@ -79,7 +80,7 @@ void Digimon::beginTraining() {
 void Digimon::finishTraining(bool won) {
     if (!won) return;
     addStrength(1);
-    addDigimonPower(10);
+    addEnergy(10);
     updateCare(0);
 }
 
@@ -99,6 +100,7 @@ bool Digimon::cure() {
 
 void Digimon::applyLights(bool on) {
     if (state == STATE_EGG || state == STATE_DEAD) return;
+    if (on) { fullNightCandidate = false; nightSleepMs = 0; }
     lightsOn = on;
     forcedAsleep = !on;
     if (state != STATE_SICK) state = on ? (inBedtime ? STATE_TIRED : STATE_AWAKE) : STATE_ASLEEP;
@@ -114,7 +116,19 @@ void Digimon::updateSleepSchedule(uint8_t hours, uint8_t minutes, bool clockChan
     const int wake = properties->wakeUpHour * 60;
     const bool sleepingHours = dailyWindow(now, bedtime, wake);
     inBedtime = dailyWindow(now, (bedtime + 1440 - 30) % 1440, wake);
+    if (clockChanged) { fullNightCandidate = false; nightSleepMs = 0; }
+    if (sleepingHours && !care.wasInSleepWindow) {
+        fullNightCandidate = !clockChanged && now == bedtime && !lightsOn &&
+            (state == STATE_ASLEEP || state == STATE_AWAKE || state == STATE_TIRED);
+        nightSleepMs = 0;
+    }
     if (!sleepingHours) {
+        const uint32_t requiredSleepMs = ((wake - bedtime + 1440) % 1440) * 60000UL;
+        if (!clockChanged && care.wasInSleepWindow && fullNightCandidate &&
+            requiredSleepMs > 0 && nightSleepMs >= requiredSleepMs &&
+            state == STATE_ASLEEP && !lightsOn) setEnergy(properties->maxEnergy);
+        fullNightCandidate = false;
+        nightSleepMs = 0;
         const bool wakeNow = care.wasInSleepWindow || clockChanged;
         care.bedtimeHandled = false;
         if (wakeNow && state == STATE_ASLEEP) {
@@ -134,6 +148,15 @@ void Digimon::updateSleepSchedule(uint8_t hours, uint8_t minutes, bool clockChan
 
 void Digimon::loop(unsigned long delta) {
     if (!properties || state == STATE_DEAD) return;
+    if (fullNightCandidate) {
+        if (state == STATE_ASLEEP && !lightsOn) {
+            const uint32_t limit = 24UL * 60 * 60 * 1000;
+            nightSleepMs += delta < limit - nightSleepMs ? delta : limit - nightSleepMs;
+        } else {
+            fullNightCandidate = false;
+            nightSleepMs = 0;
+        }
+    }
     updateTimers(delta);
 }
 
@@ -158,7 +181,7 @@ void Digimon::updateTimers(unsigned long delta) {
         const bool reachedSicknessThreshold = numberOfPoops + piles >= 8;
         numberOfPoops = numberOfPoops + piles > 8 ? 8 : numberOfPoops + piles;
         if (reachedSicknessThreshold) state = STATE_SICK;
-        weight = piles > weight ? 0 : weight - piles;
+        setWeight(piles > weight ? 0 : weight - piles);
         poopTimer %= poopInterval;
     }
     const unsigned long feedInterval = properties->feedTimeSec * 1000UL;

@@ -50,8 +50,7 @@ bool SaveGameHandler::loadDigimon(Digimon* digimon) {
     digimon->setNumberOfPoops(EEPROM.readByte(ADDRESS_NUMBEROFPOOPS));
     digimon->setHunger(EEPROM.readByte(ADDRESS_HUNGER));
     digimon->setStrength(EEPROM.readByte(ADDRESS_STRENGTH));
-    digimon->setEffort(EEPROM.readByte(ADDRESS_EFFORT));
-    digimon->setDigimonPower(EEPROM.readByte(ADDRESS_DIGIMONPOWER));
+    digimon->setEnergy(EEPROM.readByte(ADDRESS_ENERGY));
     // load lights and sleep-flag
     digimon->setLightsOn(EEPROM.readByte(ADDRESS_LIGHTS));
     digimon->setSleepCareMistakeLogged(EEPROM.readByte(ADDRESS_SLEEP_LOGGED));
@@ -65,7 +64,7 @@ bool SaveGameHandler::loadDigimon(Digimon* digimon) {
         digimon->setFeedTimer(extra.feedTimer);
         digimon->restoreCareTrackingState(extra.care);
     } else {
-        // Old evolution timer bytes overlap DP/feed bytes; they cannot be recovered.
+        // Old evolution timer bytes overlap energy/feed bytes; they cannot be recovered.
         digimon->setEvolutionTimer(0);
         digimon->setFeedTimer(EEPROM.readULong(FEED_TIMER));
         digimon->setOverfeedCounter(0);
@@ -91,14 +90,13 @@ void SaveGameHandler::saveDigimon(Digimon* digimon) {
     EEPROM.put(ADDRESS_NUMBEROFPOOPS,digimon->getNumberOfPoops());
     EEPROM.put(ADDRESS_HUNGER,digimon->getHunger());
     EEPROM.put(ADDRESS_STRENGTH,digimon->getStrength());
-    EEPROM.put(ADDRESS_EFFORT,digimon->getEffort());
-    EEPROM.put(ADDRESS_DIGIMONPOWER,digimon->getDigimonPower());
+    EEPROM.put(ADDRESS_ENERGY,digimon->getEnergy());
     EEPROM.put(FEED_TIMER,digimon->getFeedTimer());
     // persist lights and sleep-flag
     EEPROM.put(ADDRESS_LIGHTS, digimon->isLightsOn());
     EEPROM.put(ADDRESS_SLEEP_LOGGED, digimon->isSleepCareMistakeLogged());
     // Keep the legacy layout readable and store new fields plus intact timers
-    // outside its overlapping evolution/DP/feed addresses.
+    // outside its overlapping evolution/energy/feed addresses.
     SaveExtension extra{};
     extra.magic = EXTENSION_MAGIC;
     extra.version = 1;
