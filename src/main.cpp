@@ -366,6 +366,14 @@ void stateMachineInit() {
     trainingAnimationAttack.chooseShieldBottom();
   });
 
+  // Play feedback when each round reveals its success/failure symbol.
+  auto playTrainingRoundResult = [](bool won) {
+    if (won) soundManager.playHappy();
+    else soundManager.playAlert();
+  };
+  trainingAnimationDefend.setRoundResultCallback(playTrainingRoundResult);
+  trainingAnimationAttack.setRoundResultCallback(playTrainingRoundResult);
+
   // Play the result once, alongside the happy/angry animation in either mode.
   auto playTrainingResult = [](bool won) {
     savegame.saveDigimon(&digimon);

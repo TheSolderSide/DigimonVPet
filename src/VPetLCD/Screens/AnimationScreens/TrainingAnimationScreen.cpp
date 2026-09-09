@@ -74,7 +74,14 @@ void TrainingAnimationScreen::chooseShieldBottom(){
 
 void TrainingAnimationScreen::loop(unsigned long delta){
     if(stage == 1){
+        const unsigned long previousTimer = stageTimer;
         stageTimer += delta;
+        if(previousTimer < TRAINING_ATTACK_DURATION && stageTimer >= TRAINING_ATTACK_DURATION){
+            const bool won = mode == MODE_DEFEND
+                ? opponentChoicePos == playerChoicePos
+                : opponentChoicePos != playerChoicePos;
+            if(roundResultCallback) roundResultCallback(won);
+        }
         if(stageTimer > (TRAINING_ATTACK_DURATION + TRAINING_RESULT_HOLD)){
             // end of this round
             currentRound++;
