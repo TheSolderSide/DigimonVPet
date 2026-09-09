@@ -191,6 +191,9 @@ void stateMachineInit() {
   stateMachine.addTransition(digimonScreenId, digimonScreenId, confirmSignal);
   stateMachine.addTransitionAction(digimonScreenId, confirmSignal, []() {
     const uint8_t selected = menuBar.getSelection();
+    // Eggs can only access the scales/stats menu.
+    if (digimon.getState() == STATE_EGG && selected != 0) return;
+
     if (digimon.getState() == STATE_ASLEEP || !digimon.isLightsOn()) {
       if (selected != 0 && selected != 1 && selected != 2 && selected != 3 && selected != 5 &&
           !(selected == 6 && digimon.getState() == STATE_SICK)) return;
