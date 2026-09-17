@@ -16,7 +16,7 @@ void StoryBattleScreen::confirm() {
     }
     playerPower = BattleRules::power(pet->getEnergyPercentage(), record.trainingWins,
                                     pet->getHungerHearts(), pet->getStrengthHearts());
-    enemyPower = BattleRules::power(65 + record.opponent * 3, record.opponent * 2, 4, 4);
+    enemyPower = BattleRules::power(50 + record.opponent * 3, record.opponent, 4, 4);
     opponent = DIGIMON_AGUMON + record.opponent;
     playerSpecies = pet->getDigimonIndex();
     pet->spendEnergy(BattleRules::ENERGY_COST);

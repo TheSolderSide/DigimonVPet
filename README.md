@@ -155,8 +155,8 @@ Each attack rolls against a hit chance based on these tunable rules in
 - Power = 40 + 40 × energy percentage / 100 + 2 × training wins (capped at 20 wins),
   minus 6 for each missing hunger heart and each missing strength heart.
 - Hit chance = 60 + (attacker power − defender power) / 2, clamped to 15–90%.
-- Opponents start with full hearts, 65% energy and zero training wins; each
-  tournament step adds 3 energy percentage points and two training wins.
+- Opponents start with full hearts, 50% energy and zero training wins; each
+  tournament step adds 3 energy percentage points and one training win.
 - Most hits after all five rounds wins; equal hits produce a draw. A win/loss
   finishes with the winner's double missile, one in each half of the LCD.
   The finisher is cosmetic and does not add another round or hit.
