@@ -22,6 +22,7 @@
 #include "VPetLCD/Screens/AnimationScreens/EatingAnimationScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/SleepingAnimationScreen.h"
 #include "VPetLCD/Screens/TrainingScreen.h"
+#include "VPetLCD/Screens/StoryBattleScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/CureAnimationScreen.h"
 #include "VPetLCD/Screens/AnimationScreens/TrainingAnimationScreen.h"
 
@@ -94,8 +95,12 @@ V20::AgeWeightScreen ageWeightScreen(5, 21);
 V20::HeartsScreen hungryScreen("Hungry", digimon.getHungerHearts(), 4);
 V20::HeartsScreen strengthScreen("Str", digimon.getStrengthHearts(), 4);
 V20::ProgressBarScreen energyScreen("Energy", 30, digimon.getEnergy());
-V20::PercentageScreen sPercentageScreen("WIN", 'S', 100);
-V20::PercentageScreen tPercentageScreen("WIN", 'T', 93);
+V20::PercentageScreen sPercentageScreen("WIN", 'S', 0);
+V20::PercentageScreen tPercentageScreen("WIN", 'T', 0);
+StoryBattleScreen storyBattleScreen(&spriteManager, &digimon);
+BattleRecordScreen battleWinsScreen(&digimon, false);
+BattleRecordScreen battleDrawsScreen(&digimon, true);
+BattleRecordScreen tournamentWinsScreen(&digimon, 2);
 V20::SelectionScreen foodSelection(true);
 V20::SelectionScreen fightSelection(true);
 V20::SelectionScreen lightSelection(true);
@@ -108,8 +113,8 @@ V20::TrainingScreen trainingSelection;
 TrainingAnimationScreen trainingAnimationDefend(&spriteManager, digimon.getDigimonIndex(), &digimon);
 TrainingAnimationScreen trainingAnimationAttack(&spriteManager, digimon.getDigimonIndex(), &digimon, 1);
 
-//19 screens and 3 signals (next, confirm and back)
-uint8_t numberOfScreens = 19;
+//23 screens and 3 signals (next, confirm and back)
+uint8_t numberOfScreens = 23;
 uint8_t numberOfSignals = 3;
 
 uint8_t confirmSignal = 0;
@@ -139,6 +144,10 @@ uint8_t trainingSelectionId = stateMachine.addScreen(&trainingSelection);
 uint8_t trainingAnimationDefendId = stateMachine.addScreen(&trainingAnimationDefend);
 uint8_t trainingAnimationAttackId = stateMachine.addScreen(&trainingAnimationAttack);
 uint8_t cureAnimationScreenId = stateMachine.addScreen(&cureAnimationScreen);
+uint8_t storyBattleScreenId = stateMachine.addScreen(&storyBattleScreen);
+uint8_t battleWinsScreenId = stateMachine.addScreen(&battleWinsScreen);
+uint8_t battleDrawsScreenId = stateMachine.addScreen(&battleDrawsScreen);
+uint8_t tournamentWinsScreenId = stateMachine.addScreen(&tournamentWinsScreen);
 
 uint8_t poop=0;
 
@@ -170,7 +179,10 @@ void stateMachineInit() {
   stateMachine.addTransition(hungryScreenId, strengthScreenId, nextSignal);
   stateMachine.addTransition(strengthScreenId, energyScreenId, nextSignal);
   stateMachine.addTransition(energyScreenId, sPercentageScreenId, nextSignal);
-  stateMachine.addTransition(sPercentageScreenId, tPercentageScreenId, nextSignal);
+  stateMachine.addTransition(sPercentageScreenId, battleWinsScreenId, nextSignal);
+  stateMachine.addTransition(battleWinsScreenId, battleDrawsScreenId, nextSignal);
+  stateMachine.addTransition(battleDrawsScreenId, tournamentWinsScreenId, nextSignal);
+  stateMachine.addTransition(tournamentWinsScreenId, tPercentageScreenId, nextSignal);
   stateMachine.addTransition(tPercentageScreenId, digiNameScreenId, nextSignal);
 
   //Transitions between clock screen and digimon watching screen
@@ -228,7 +240,7 @@ void stateMachineInit() {
       trainingSelection.setSelection(0);
       stateMachine.setCurrentScreen(trainingSelectionId);
       break;
-    case 3: //fight (this is not set up yet as no fight logic)
+    case 3: //fight
       if (digimon.getState() == STATE_EGG){
         break; // don't allow sleeping if still an egg
       }
@@ -417,6 +429,25 @@ void stateMachineInit() {
     });
 
   //adding functionality of buttons in fight screen:
+  storyBattleScreen.setCallbacks([]() { savegame.saveDigimon(&digimon); }, []() {
+    stateMachine.setCurrentScreen(digimonScreenId);
+  }, [](int result) {
+    if (result > 0) soundManager.playHappy();
+    else soundManager.playAlert();
+  });
+  stateMachine.addTransition(fightSelectionId, fightSelectionId, confirmSignal);
+  stateMachine.addTransitionAction(fightSelectionId, confirmSignal, []() {
+    if (fightSelection.getSelection() == 0) {
+      storyBattleScreen.open();
+      stateMachine.setCurrentScreen(storyBattleScreenId);
+    }
+  });
+  stateMachine.addTransition(storyBattleScreenId, storyBattleScreenId, nextSignal);
+  stateMachine.addTransitionAction(storyBattleScreenId, nextSignal, []() { storyBattleScreen.next(); });
+  stateMachine.addTransition(storyBattleScreenId, storyBattleScreenId, confirmSignal);
+  stateMachine.addTransitionAction(storyBattleScreenId, confirmSignal, []() { storyBattleScreen.confirm(); });
+  stateMachine.addTransition(storyBattleScreenId, storyBattleScreenId, backSignal);
+  stateMachine.addTransitionAction(storyBattleScreenId, backSignal, []() { storyBattleScreen.back(); });
   stateMachine.addTransition(fightSelectionId, fightSelectionId, nextSignal);
   stateMachine.addTransitionAction(fightSelectionId, nextSignal, []() {
     fightSelection.nextSelection();
@@ -606,8 +637,9 @@ void loop()
 
   const uint8_t previousHealthState = digimon.getState();
   const uint16_t previousCareMistakes = digimon.getCareMistakes();
+  const uint8_t previousEnergy = digimon.getEnergy();
   digimon.loop(lastDelta);
-  if (digimon.getCareMistakes() != previousCareMistakes ||
+  if (digimon.getEnergy() != previousEnergy || digimon.getCareMistakes() != previousCareMistakes ||
       (previousHealthState != STATE_SICK && digimon.getState() == STATE_SICK)) {
     savegame.saveDigimon(&digimon);
   }
@@ -625,6 +657,8 @@ void loop()
     trainingAnimationDefend.loop(lastDelta);
   if (stateMachine.getCurrentScreen() == &trainingAnimationAttack)
     trainingAnimationAttack.loop(lastDelta);
+  if (stateMachine.getCurrentScreen() == &storyBattleScreen)
+    storyBattleScreen.loop(lastDelta);
   
   if (stateMachine.getCurrentScreen() == &cureAnimationScreen)
     cureAnimationScreen.loop(lastDelta);
@@ -639,6 +673,9 @@ void loop()
   ageWeightScreen.setWeight(digimon.getWeight());
   energyScreen.setFillPercentage(digimon.getEnergyPercentage());
   screen.setCallActive(digimon.isCallActive());
+  const auto battleRecord = digimon.getBattleRecord();
+  const uint32_t totalBattles = (uint32_t)battleRecord.wins + battleRecord.draws + battleRecord.losses;
+  sPercentageScreen.setPercentage(totalBattles ? (uint32_t)battleRecord.wins * 100 / totalBattles : 0);
   screen.renderScreen(stateMachine.getCurrentScreen());
   
   if (digimon.isEvolved()){
@@ -676,7 +713,8 @@ void loop()
         if (previousState != digimon.getState() &&
             (previousState == STATE_ASLEEP || digimon.getState() == STATE_ASLEEP)) {
           savegame.saveDigimon(&digimon);
-          if (stateMachine.getCurrentScreenId() != clockScreenId) {
+          if (stateMachine.getCurrentScreenId() != clockScreenId &&
+              !(stateMachine.getCurrentScreenId() == storyBattleScreenId && storyBattleScreen.isFighting())) {
             stateMachine.setCurrentScreen(digimonScreenId);
           }
         }

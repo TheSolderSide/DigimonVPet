@@ -79,6 +79,7 @@ void Digimon::beginTraining() {
 
 void Digimon::finishTraining(bool won) {
     if (!won) return;
+    if (battles.trainingWins < UINT16_MAX) ++battles.trainingWins;
     addStrength(1);
     addEnergy(10);
     updateCare(0);
@@ -148,6 +149,15 @@ void Digimon::updateSleepSchedule(uint8_t hours, uint8_t minutes, bool clockChan
 
 void Digimon::loop(unsigned long delta) {
     if (!properties || state == STATE_DEAD) return;
+    // Short rests recover battle energy too: one point per minute asleep in darkness.
+    if (state == STATE_ASLEEP && !lightsOn) {
+        restTimer += delta;
+        if (restTimer >= 60000UL) {
+            const unsigned long recovered = restTimer / 60000UL;
+            addEnergy(recovered > 255 ? 255 : recovered);
+            restTimer %= 60000UL;
+        }
+    } else restTimer = 0;
     if (fullNightCandidate) {
         if (state == STATE_ASLEEP && !lightsOn) {
             const uint32_t limit = 24UL * 60 * 60 * 1000;

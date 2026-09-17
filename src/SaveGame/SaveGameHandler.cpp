@@ -14,6 +14,15 @@ struct SaveExtension {
     CareTrackingState care;
 };
 static_assert(EXTENSION_ADDRESS + sizeof(SaveExtension) <= EEPROM_SIZE, "Save exceeds EEPROM");
+constexpr int BATTLE_ADDRESS = 128;
+constexpr uint32_t LEGACY_BATTLE_MAGIC = 0x42544C31;
+constexpr uint32_t BATTLE_MAGIC = 0x42544C32;
+struct BattleSave {
+    uint32_t magic;
+    BattleRecord record;
+};
+static_assert(EXTENSION_ADDRESS + sizeof(SaveExtension) <= BATTLE_ADDRESS, "Save sections overlap");
+static_assert(BATTLE_ADDRESS + sizeof(BattleSave) <= EEPROM_SIZE, "Battle save exceeds EEPROM");
 }
 
 void SaveGameHandler::resetDigimon(Digimon* digimon) {
@@ -73,6 +82,15 @@ bool SaveGameHandler::loadDigimon(Digimon* digimon) {
         digimon->restoreCareTrackingState(CareTrackingState{});
     }
 
+    BattleSave battle{};
+    EEPROM.get(BATTLE_ADDRESS, battle);
+    if (battle.magic == BATTLE_MAGIC) digimon->restoreBattleRecord(battle.record);
+    else if (battle.magic == LEGACY_BATTLE_MAGIC) {
+        // The original fields retain their offsets. Ignore bytes beyond the
+        // old record and credit a previously completed tournament once.
+        battle.record.tournamentWins = battle.record.opponent == 12 ? 1 : 0;
+        digimon->restoreBattleRecord(battle.record);
+    }
     return true;
 }
 
@@ -107,5 +125,9 @@ void SaveGameHandler::saveDigimon(Digimon* digimon) {
     extra.feedTimer = digimon->getFeedTimer();
     extra.care = digimon->getCareTrackingState();
     EEPROM.put(EXTENSION_ADDRESS, extra);
+    BattleSave battle{};
+    battle.magic = BATTLE_MAGIC;
+    battle.record = digimon->getBattleRecord();
+    EEPROM.put(BATTLE_ADDRESS, battle);
     EEPROM.commit();
 }

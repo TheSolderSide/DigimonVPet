@@ -134,10 +134,58 @@ The Energy bar displays the current amount as a percentage of the species'
 
 An uninterrupted, lights-off sleep covering the entire `sleepHour` to
 `wakeUpHour` interval restores energy to the species maximum at wake-up.
-Turn the lights off before bedtime to qualify. Interrupted sleep, late lights
-out, naps and clock changes do not refill energy. Night qualification is
+Turn the lights off before bedtime to qualify. Short rests also recover one
+energy per real minute asleep with the lights off, capped at maximum energy.
+Changing the clock alone does not grant energy. Night qualification is
 tracked while powered on; rebooting breaks the uninterrupted-night check.
 Vitamins add 2 energy and successful training adds 10, capped at `maxEnergy`.
-Vitamins can be taken at full strength if energy still needs replenishing. Future battles can use
-`spendEnergy(cost)`, which refuses a cost above the available energy without
-changing it. No battle costs are applied until battles are implemented.
+Vitamins can be taken at full strength if energy still needs replenishing.
+
+### Single story tournament
+
+Open Fight > SINGLE. The preview shows the next opponent and alternates with
+their match number. Button 1 switches GO/REST; button 2 confirms. GO starts an
+automatic five-round match, with both Digimon attacking once each round.
+Each match costs five energy paid at the start. Sick, injured, sleeping and
+dead pets cannot start a match. The outcome uses the pet's condition at entry.
+
+Each attack rolls against a hit chance based on these tunable rules in
+`src/GameLogic/BattleRules.h`:
+
+- Power = 40 + 40 × energy percentage / 100 + 2 × training wins (capped at 20 wins),
+  minus 6 for each missing hunger heart and each missing strength heart.
+- Hit chance = 60 + (attacker power − defender power) / 2, clamped to 15–90%.
+- Opponents start with full hearts, 65% energy and zero training wins; each
+  tournament step adds 3 energy percentage points and two training wins.
+- Most hits after all five rounds wins; equal hits produce a draw. A win/loss
+  finishes with the winner's double missile, one in each half of the LCD.
+  The finisher is cosmetic and does not add another round or hit.
+
+The camera cuts between your pet on the left and the opponent on the right,
+using the existing training attack, defence, missile and reaction assets.
+There are 12 opponents, Agumon through Monzaemon in roster order. A win advances;
+a draw or loss keeps the same opponent for a retry. Completing all opponents
+adds one to the CHAMPS stat and shows a three-second flashing champion title
+and happy Digimon animation after the finishing missiles. The tournament then
+returns to GO/REST at opponent 1; the next fight starts only when you choose GO.
+Match records and tournament wins accumulate for the current pet until a new game.
+The title is saved before the celebration; restarting during it resumes the
+celebration when SINGLE is opened without counting the win again. An older save
+with a completed tournament is credited with one title.
+Each completed loss has a 25% chance of causing sickness, saved with the result.
+Use the cure menu before battling again. Wins and draws do not cause battle sickness.
+
+On the result screen, button 2 returns to GO/REST. REST or holding button 1
+returns home between matches. Turn lights OFF to recover energy, then return
+to SINGLE to resume. Back is ignored during a match. A power interruption
+keeps the paid energy cost; an unfinished match awards no record or progress.
+
+Stats now show single win percentage and separate WINS and DRAWS counts.
+Losses are saved and included in the percentage denominator. Training wins
+are tracked separately from attempts; old saves begin the new counters at zero.
+Progress, results and recovered energy are saved automatically. TAG remains a placeholder.
+
+Run `python tests/native/run.py` for battle outcomes, energy costs, rest,
+persistence, old-save migration and existing care/training regression checks.
+On hardware, check missile direction, upper/lower finishing missiles, result
+readability, GO/REST controls and resuming the next opponent after a reboot.

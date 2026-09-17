@@ -14,3 +14,9 @@ struct TestSerial {
 inline TestSerial Serial;
 // Deterministic training opponent chooses bottom.
 inline long random(long, long) { return 0; }
+inline long playerRoll = 0, enemyRoll = 0;
+inline unsigned battleRoll = 0;
+inline long random(long upper) {
+    return upper == 100 ? ((battleRoll++ % 2) == 0 ? playerRoll : enemyRoll) : 0;
+}
+inline unsigned long millis() { return 0; }

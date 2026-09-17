@@ -1,4 +1,5 @@
 #include <cassert>
+#include "../../src/VPetLCD/Screens/StoryBattleScreen.h"
 #include "../../src/VPetLCD/Screens/AnimationScreens/CureAnimationScreen.h"
 #include <iostream>
 #include "../../src/GameLogic/Digimon.h"
@@ -12,6 +13,8 @@ void VPetLCD::drawCharArrayOnLCD(char*, int16_t, int16_t, uint16_t) {}
 void VPetLCD::drawSymbol(uint16_t, int16_t, int16_t, boolean, uint16_t) {}
 
 void VPetLCD::drawPixelOnLCD(int16_t, int16_t, uint16_t) {}
+void VPetLCD::drawSmallIntegerOnLCD(int16_t, int16_t, int16_t, uint16_t) {}
+void VPetLCD::drawDigitOnLCD(int16_t, int16_t, int16_t, uint16_t) {}
 
 constexpr unsigned long minute = 60000;
 Digimon pet() {
@@ -276,13 +279,13 @@ void sleepEnergy() {
     interrupted.applyLights(false); interrupted.updateSleepSchedule(19, 0);
     interrupted.loop(6 * 60 * minute); interrupted.disturbSleep();
     interrupted.applyLights(false); interrupted.loop(7 * 60 * minute);
-    interrupted.updateSleepSchedule(8, 0); assert(interrupted.getEnergy() == 0);
+    interrupted.updateSleepSchedule(8, 0); assert(interrupted.getEnergy() == 20);
     auto clockJump = pet();
     clockJump.applyLights(false); clockJump.updateSleepSchedule(19, 0);
     clockJump.updateSleepSchedule(8, 0, true); assert(clockJump.getEnergy() == 0);
     auto late = pet(); late.updateSleepSchedule(19, 0); late.applyLights(false);
     late.loop(13 * 60 * minute); late.updateSleepSchedule(8, 0);
-    assert(late.getEnergy() == 0);
+    assert(late.getEnergy() == 20);
     auto awake = pet(); awake.setStrength(0); awake.feedProtein();
     awake.beginTraining(); awake.finishTraining(true); assert(awake.getEnergy() == 12);
     awake.setEnergy(19); awake.addEnergy(255); assert(awake.getEnergy() == 20);
@@ -318,7 +321,148 @@ void weightAndEnergyRestore() {
     loaded.loop(interval); assert(loaded.getWeight() == loaded.getProperties()->minWeight);
 }
 
+void storyBattles() {
+    assert(BattleRules::power(100, 0, 4, 4) > BattleRules::power(0, 0, 4, 4));
+    assert(BattleRules::power(100, 1, 4, 4) > BattleRules::power(100, 0, 4, 4));
+    assert(BattleRules::power(100, 0, 3, 4) == BattleRules::power(100, 0, 4, 4) - 6);
+    assert(BattleRules::power(100, 0, 4, 3) == BattleRules::power(100, 0, 4, 4) - 6);
+    assert(BattleRules::power(100, 65535, 4, 4) == BattleRules::power(100, 20, 4, 4));
+    assert(BattleRules::hitChance(-1000, 1000) == 15);
+    assert(BattleRules::hitChance(1000, -1000) == 90);
+    SaveGameHandler saves;
+    auto d = pet();
+    d.beginTraining(); d.finishTraining(false);
+    assert(d.getBattleRecord().trainingWins == 0);
+    d.beginTraining(); d.finishTraining(true);
+    assert(d.getBattleRecord().trainingWins == 1 && d.getTrainingCounter() == 2);
+    for (int result : {1, 0, -1}) {
+        d.setEnergy(20);
+        playerRoll = result < 0 ? 99 : 0;
+        enemyRoll = result > 0 ? 99 : 0;
+        battleRoll = 0;
+        StoryBattleScreen screen(nullptr, &d);
+        int saved = 0, exited = 0, reported = 9;
+        screen.setCallbacks([&]() { ++saved; saves.saveDigimon(&d); },
+                            [&]() { ++exited; }, [&](int outcome) { reported = outcome; });
+        const auto before = d.getBattleRecord();
+        screen.open(); screen.confirm();
+        assert(screen.isFighting() && d.getEnergy() == 15 && saved == 1);
+        screen.back(); screen.confirm();
+        assert(exited == 0 && d.getEnergy() == 15);
+        // Four stages per round. No result is counted before round five finishes.
+        for (int i = 0; i < 19; ++i) screen.loop(700);
+        assert(saved == 1);
+        screen.loop(700);
+        assert(reported == result && saved == 2 && battleRoll == 10 + (result < 0));
+        for (int i = 0; i < 10; ++i) screen.loop(700);
+        assert(!screen.isFighting() && saved == 2);
+        const auto after = d.getBattleRecord();
+        assert(after.wins == before.wins + (result > 0));
+        assert(after.draws == before.draws + (result == 0));
+        assert(after.losses == before.losses + (result < 0));
+        assert(after.opponent == before.opponent + (result > 0));
+        auto loaded = pet(); assert(saves.loadDigimon(&loaded));
+        assert(loaded.getBattleRecord().opponent == after.opponent);
+        assert(loaded.getBattleRecord().wins == after.wins);
+        assert(loaded.getBattleRecord().draws == after.draws);
+        assert(loaded.getBattleRecord().trainingWins == 1 && loaded.getEnergy() == 15);
+        screen.confirm(); screen.next(); screen.confirm(); assert(exited == 1);
+    }
+    StoryBattleScreen refused(nullptr, &d);
+    d.setEnergy(4); refused.confirm(); assert(!refused.isFighting() && d.getEnergy() == 4);
+    d.setEnergy(20); d.setState(STATE_SICK); refused.confirm(); assert(!refused.isFighting());
+    d.setState(STATE_AWAKE);
+    auto record = d.getBattleRecord(); record.opponent = 11; d.restoreBattleRecord(record);
+    d.recordBattle(1); assert(d.getBattleRecord().opponent == 12);
+    refused.open(); refused.confirm(); assert(refused.isFighting());
+    refused.loop(3000); assert(!refused.isFighting() && d.getBattleRecord().opponent == 0);
+    record.wins = UINT16_MAX; record.opponent = 255; d.restoreBattleRecord(record);
+    assert(d.getBattleRecord().opponent == 0);
+    d.recordBattle(1); assert(d.getBattleRecord().wins == UINT16_MAX);
+    saves.resetDigimon(&d); assert(d.getBattleRecord().wins == 0 && d.getBattleRecord().trainingWins == 0);
+    // An old save has no battle block and starts the new counters at zero.
+    d = pet(); saves.saveDigimon(&d);
+    for (int i = 128; i < 160; ++i) EEPROM.bytes[i] = 0xFF;
+    assert(saves.loadDigimon(&d)); assert(d.getBattleRecord().wins == 0);
+    d.setEnergy(0); d.applyLights(false);
+    d.loop(minute - 1); assert(d.getEnergy() == 0);
+    d.loop(1); assert(d.getEnergy() == 1);
+    d.applyLights(true); d.loop(minute); assert(d.getEnergy() == 1);
+}
+
+void battleSickness() {
+    SaveGameHandler saves;
+    for (long sicknessRoll : {0L, 24L, 25L, 99L}) {
+        auto d = pet();
+        d.setEnergy(20);
+        playerRoll = 99; enemyRoll = 0; battleRoll = 0;
+        StoryBattleScreen screen(nullptr, &d);
+        screen.setCallbacks([&]() { saves.saveDigimon(&d); }, []() {}, [](int) {});
+        screen.confirm();
+        for (int i = 0; i < 19; ++i) screen.loop(700);
+        assert(d.getState() == STATE_AWAKE);
+        // All five exchanges are already rolled; the next roll is sickness.
+        playerRoll = sicknessRoll;
+        screen.loop(700);
+        const bool sick = sicknessRoll < BattleRules::LOSS_SICKNESS_PERCENT;
+        assert((d.getState() == STATE_SICK) == sick);
+        auto loaded = pet();
+        assert(saves.loadDigimon(&loaded));
+        assert((loaded.getState() == STATE_SICK) == sick);
+        assert(loaded.getBattleRecord().losses == 1);
+        for (int i = 0; i < 10; ++i) screen.loop(700);
+        assert(battleRoll == 11); // Result frames do not reroll sickness.
+        if (sick) assert(loaded.cure() && loaded.getState() != STATE_SICK);
+    }
+}
+
+void tournamentChampions() {
+    SaveGameHandler saves;
+    auto d = pet();
+    d.setEnergy(20);
+    auto record = d.getBattleRecord(); record.opponent = 11;
+    d.restoreBattleRecord(record);
+    playerRoll = 0; enemyRoll = 99; battleRoll = 0;
+    StoryBattleScreen screen(nullptr, &d);
+    int saved = 0;
+    screen.setCallbacks([&]() { ++saved; saves.saveDigimon(&d); }, []() {}, [](int) {});
+    screen.open(); screen.confirm();
+    for (int i = 0; i < 20; ++i) screen.loop(700);
+    assert(d.getBattleRecord().tournamentWins == 1 && saved == 2);
+    auto restored = pet(); assert(saves.loadDigimon(&restored));
+    assert(restored.getBattleRecord().tournamentWins == 1 && restored.getBattleRecord().opponent == 12);
+    screen.loop(700); screen.loop(600); // Finisher, then champion celebration.
+    screen.loop(2999);
+    assert(screen.isFighting() && d.getBattleRecord().opponent == 12);
+    screen.confirm(); screen.back(); // Cannot skip the celebration or start another match.
+    screen.loop(1);
+    assert(!screen.isFighting() && d.getBattleRecord().opponent == 0 && saved == 3);
+    assert(d.getBattleRecord().tournamentWins == 1 && d.getEnergy() == 15);
+    // Rebooting during the celebration resumes it without awarding another win.
+    StoryBattleScreen resumed(nullptr, &restored);
+    resumed.open(); resumed.loop(3000);
+    assert(restored.getBattleRecord().opponent == 0 && restored.getBattleRecord().tournamentWins == 1);
+    record = d.getBattleRecord(); record.opponent = 11; d.restoreBattleRecord(record);
+    d.recordBattle(0); d.recordBattle(-1);
+    assert(d.getBattleRecord().tournamentWins == 1);
+    d.recordBattle(1); assert(d.getBattleRecord().tournamentWins == 2);
+    // Legacy completed saves receive one title, ignoring old padding bytes.
+    saves.saveDigimon(&d);
+    EEPROM.put(128, uint32_t(0x42544C31));
+    assert(saves.loadDigimon(&restored));
+    assert(restored.getBattleRecord().tournamentWins == 1);
+    restored.restartTournament(); saves.saveDigimon(&restored);
+    assert(saves.loadDigimon(&d)); assert(d.getBattleRecord().tournamentWins == 1);
+    record = d.getBattleRecord(); record.opponent = 11; record.tournamentWins = UINT16_MAX;
+    d.restoreBattleRecord(record); d.recordBattle(1);
+    assert(d.getBattleRecord().tournamentWins == UINT16_MAX);
+    saves.resetDigimon(&d); assert(d.getBattleRecord().tournamentWins == 0);
+}
+
 int main() {
+    tournamentChampions();
+    battleSickness();
+    storyBattles();
     weightAndEnergyRestore(); sleepEnergy(); sicknessPersists(); bootSaveHandling(); poopSickness(); curing(); careEpisodes(); feedingAndDecay(); sleepSchedule(); training(); savesAndEvolution();
-    std::cout << "Care, feeding, sleep, training, persistence and evolution passed (Version 1)\n";
+    std::cout << "Story battles, care, feeding, sleep, training, persistence and evolution passed\n";
 }

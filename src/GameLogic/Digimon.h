@@ -105,6 +105,15 @@ struct CareTrackingState {
     bool wasInSleepWindow = false;
 };
 
+struct BattleRecord {
+    uint16_t trainingWins = 0;
+    uint16_t wins = 0;
+    uint16_t draws = 0;
+    uint16_t losses = 0;
+    uint8_t opponent = 0; // 0..11; 12 means tournament complete.
+    uint16_t tournamentWins = 0;
+};
+
 class Digimon{
 
     private:
@@ -152,6 +161,8 @@ class Digimon{
         boolean sleepLocked = false;
 
         CareTrackingState care;
+        BattleRecord battles;
+        unsigned long restTimer = 0;
         bool callAlertPending = false;
         bool inBedtime = false;
         bool fullNightCandidate = false;
@@ -229,6 +240,21 @@ class Digimon{
         bool feedProtein();
         void beginTraining();
         void finishTraining(bool won);
+        BattleRecord getBattleRecord() const { return battles; }
+        void restoreBattleRecord(BattleRecord value) {
+            battles = value;
+            if (battles.opponent > 12) battles.opponent = 0;
+        }
+        void recordBattle(int result) {
+            uint16_t& count = result > 0 ? battles.wins : (result == 0 ? battles.draws : battles.losses);
+            if (count < UINT16_MAX) ++count;
+            if (result > 0 && battles.opponent < 12) {
+                ++battles.opponent;
+                if (battles.opponent == 12 && battles.tournamentWins < UINT16_MAX)
+                    ++battles.tournamentWins;
+            }
+        }
+        void restartTournament() { if (battles.opponent == 12) battles.opponent = 0; }
         bool disturbSleep();
         bool cure();
         void applyLights(bool on);
